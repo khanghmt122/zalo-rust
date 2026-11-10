@@ -53,7 +53,10 @@ pub fn find_wasm_path() -> Option<PathBuf> {
         roots.push(PathBuf::from("/Applications/Zalo.app/Contents/Resources/app.asar.unpacked"));
         if let Ok(home) = std::env::var("HOME") {
             roots.push(
-                PathBuf::from(home).join("Applications/Zalo.app/Contents/Resources/app.asar.unpacked"),
+                PathBuf::from(&home).join("Applications/Zalo.app/Contents/Resources/app.asar.unpacked"),
+            );
+            roots.push(
+                PathBuf::from(&home).join("Library/Application Support/ctdozlite/scripts/assets"),
             );
         }
     }
@@ -72,6 +75,8 @@ pub fn find_wasm_path() -> Option<PathBuf> {
         for _ in 0..4 {
             if let Some(dir) = d {
                 roots.push(dir.join("scripts/assets"));
+                roots.push(dir.join("Resources/scripts/assets"));
+                roots.push(dir.join("../Resources/scripts/assets"));
                 d = dir.parent();
             } else {
                 break;

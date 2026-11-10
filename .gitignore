@@ -90,8 +90,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Sync v2 private keys (NEVER COMMIT)
+# Sync v2 private keys & proprietary WASM (NEVER COMMIT)
 sync_v2_keys.json
+scripts/assets/*.wasm
 
 # Local user session & database
 session.json

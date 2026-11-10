@@ -3669,6 +3669,7 @@ pub(crate) async fn fetch_github_latest_release() -> Result<UpdateCheckResult, S
         }
     }
 
+    let mut empty_releases = false;
     if rel_json.is_none() {
         let list_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases?per_page=5");
         if let Ok(resp) = client
@@ -3680,18 +3681,19 @@ pub(crate) async fn fetch_github_latest_release() -> Result<UpdateCheckResult, S
         {
             if resp.status().is_success() {
                 if let Ok(arr) = resp.json::<serde_json::Value>().await {
-                    if let Some(first) = arr
-                        .as_array()
-                        .and_then(|a| {
-                            a.iter()
-                                .find(|r| {
-                                    !r.get("draft").and_then(|v| v.as_bool()).unwrap_or(false)
-                                })
-                                .or_else(|| a.first())
-                        })
-                        .cloned()
-                    {
-                        rel_json = Some(first);
+                    if let Some(arr_list) = arr.as_array() {
+                        if arr_list.is_empty() {
+                            empty_releases = true;
+                        } else if let Some(first) = arr_list
+                            .iter()
+                            .find(|r| {
+                                !r.get("draft").and_then(|v| v.as_bool()).unwrap_or(false)
+                            })
+                            .or_else(|| arr_list.first())
+                            .cloned()
+                        {
+                            rel_json = Some(first);
+                        }
                     }
                 }
             }
@@ -3699,7 +3701,7 @@ pub(crate) async fn fetch_github_latest_release() -> Result<UpdateCheckResult, S
     }
 
     // Rate-limit resilient fallback: fetch static `latest.json` directly from GitHub Release CDN
-    if rel_json.is_none() {
+    if rel_json.is_none() && !empty_releases {
         let cdn_manifest_url =
             format!("https://github.com/{GITHUB_REPO}/releases/latest/download/latest.json");
         if let Ok(resp) = client.get(&cdn_manifest_url).send().await {
@@ -3709,6 +3711,24 @@ pub(crate) async fn fetch_github_latest_release() -> Result<UpdateCheckResult, S
                 }
             }
         }
+    }
+
+    if empty_releases && rel_json.is_none() {
+        return Ok(UpdateCheckResult {
+            current_version: current_ver.clone(),
+            latest_version: current_ver.clone(),
+            has_update: false,
+            release_title: "Phiên bản mới nhất".to_string(),
+            release_notes: format!(
+                "Kho lưu trữ GitHub ({GITHUB_REPO}) chưa phát hành bản cập nhật (Release) nào mới hơn."
+            ),
+            html_url: format!("https://github.com/{GITHUB_REPO}/releases"),
+            download_url: None,
+            asset_name: None,
+            asset_size: 0,
+            expected_sha256: None,
+            published_at: String::new(),
+        });
     }
 
     let Some(rel) = rel_json else {

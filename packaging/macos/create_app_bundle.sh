@@ -28,7 +28,11 @@ else
 fi
 chmod +x "$APP_BUNDLE/Contents/MacOS/ctdozlite"
 
-# 3. Tạo icon .icns chuẩn macOS từ src/assets/app_icon.png
+# 2b. Copy assets/WASM cho Sync v2 & zproto
+if [[ -d "$PROJECT_DIR/scripts/assets" ]]; then
+    mkdir -p "$APP_BUNDLE/Contents/Resources/scripts/assets"
+    cp -R "$PROJECT_DIR/scripts/assets/"* "$APP_BUNDLE/Contents/Resources/scripts/assets/" 2>/dev/null || true
+fi
 ICONSET_TMP="$(mktemp -d)/AppIcon.iconset"
 mkdir -p "$ICONSET_TMP"
 SRC_ICON="$PROJECT_DIR/src/assets/app_icon.png"
