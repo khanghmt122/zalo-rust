@@ -4844,8 +4844,8 @@ pub async fn get_cloud_messages(
     map.insert("groupId".into(), json!(clean_id));
     map.insert(
         "globalMsgId".into(),
-        json!(if global_msg_id.is_empty() || global_msg_id == "0" {
-            "9223372036854775808"
+        json!(if !is_old || global_msg_id.is_empty() || global_msg_id == "0" {
+            "0"
         } else {
             global_msg_id
         }),
@@ -4856,7 +4856,7 @@ pub async fn get_cloud_messages(
     if is_send2me {
         map.insert("isOA".into(), json!(1));
     }
-    map.insert("src".into(), json!(if is_old { 3 } else { 1 }));
+    map.insert("src".into(), json!(if is_old { 3 } else { -1 }));
 
     let body = Value::Object(map);
     let params = s.encoded_params(&body)?;

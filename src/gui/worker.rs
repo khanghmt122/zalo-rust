@@ -1894,7 +1894,11 @@ pub(super) fn spawn_session_worker(session: Session, gui_tx: GuiTx, egui_ctx: eg
                                     };
                                     match crate::history_sync::sync_thread(&s, &mut t).await {
                                         Ok(n) => added += n,
-                                        Err(e) => errors.push(format!("{}: {e}", t.name)),
+                                        Err(e) => {
+                                            if !crate::history_sync::is_history_exhausted_error(&e) {
+                                                errors.push(format!("{}: {e}", t.name));
+                                            }
+                                        }
                                     }
                                 }
                                 let _ = gui_tx_clone.send(GuiEvent::SyncFinished {

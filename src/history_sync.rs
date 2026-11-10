@@ -16,7 +16,6 @@ use crate::chat::{self, Thread};
 use crate::session::Session;
 use crate::store::{self, MessageStore};
 
-const DB_PATH: &str = "zalo_history.db";
 const PAGE: u32 = 50;
 /// Pages per thread per run (1 000 messages); run again to go further back.
 const MAX_PAGES: usize = 20;
@@ -32,31 +31,88 @@ pub static PHONE_SYNC_CANCEL: AtomicBool = AtomicBool::new(false);
 /// True while a phone message sync (`sync_phone_messages`) is active (#68).
 pub static PHONE_SYNC_RUNNING: AtomicBool = AtomicBool::new(false);
 
+/// Check if an error returned during history pagination indicates the server has reached
+/// the beginning/end of retained messages (e.g. error -69 "Stop retry", 604, or empty window).
+pub fn is_history_exhausted_error(err: &anyhow::Error) -> bool {
+    if let Some(se) = err.downcast_ref::<crate::session::SessionError>() {
+        if se.code == -69 || se.code == 604 || se.message.contains("Stop retry") {
+            return true;
+        }
+    }
+    let s = err.to_string();
+    s.contains("-69") || s.contains("Stop retry") || s.contains("server error -69")
+}
+
 /// Fetch older pages for `t` until the server has nothing older, `MAX_PAGES` is hit, or the user
 /// cancels. Each page is committed immediately so a crash or cancel loses nothing. SQLite work
 /// runs on the blocking pool; no connection is held across an await.
 /// Returns how many messages were new to the database.
 pub async fn sync_thread(s: &Session, t: &mut Thread) -> Result<usize> {
     let id = t.id.clone();
+    let uin = s.login.as_ref().map(|l| l.uin.as_str()).unwrap_or_default();
+    let db_path = store::db_path_for_account(uin);
+    let db_path_clone = db_path.clone();
     let mut cursor =
-        tokio::task::spawn_blocking(move || MessageStore::open(DB_PATH).ok()?.oldest_msg_id(&id))
+        tokio::task::spawn_blocking(move || MessageStore::open(&db_path_clone).ok()?.oldest_msg_id(&id))
             .await?
             .unwrap_or_default();
     let mut added = 0;
+
+    // 1. If we don't have messages yet in SQLite, fetch the latest page first via getrecentv2
+    if cursor.is_empty() || cursor == "0" {
+        match chat::get_cloud_messages(s, &t.id, "0", false, PAGE).await {
+            Ok(resp) => {
+                let before = t.messages.len();
+                chat::merge_group_history(t, &resp);
+                if t.messages.len() > before {
+                    let snapshot = t.clone();
+                    let db_clone = db_path.clone();
+                    if let Ok(n) = tokio::task::spawn_blocking(move || {
+                        store::persist_threads(
+                            &mut MessageStore::open(&db_clone)?,
+                            std::slice::from_ref(&snapshot),
+                        )
+                    })
+                    .await?
+                    {
+                        added += n;
+                    }
+                }
+                cursor = next_cursor(t, "").unwrap_or_default();
+            }
+            Err(e) => {
+                if is_history_exhausted_error(&e) {
+                    return Ok(0);
+                }
+                return Err(e);
+            }
+        }
+    }
+
+    // 2. Paginate backwards through older pages via getoldv2
     for _ in 0..MAX_PAGES {
-        if CANCEL.load(Ordering::Relaxed) {
+        if CANCEL.load(Ordering::Relaxed) || cursor.is_empty() || cursor == "0" {
             break;
         }
-        let resp = chat::get_cloud_messages(s, &t.id, &cursor, true, PAGE).await?;
+        let resp = match chat::get_cloud_messages(s, &t.id, &cursor, true, PAGE).await {
+            Ok(r) => r,
+            Err(e) => {
+                if is_history_exhausted_error(&e) {
+                    break; // Reached oldest server retention boundary cleanly
+                }
+                return Err(e);
+            }
+        };
         let before = t.messages.len();
         chat::merge_group_history(t, &resp);
         if t.messages.len() == before {
             break; // nothing older on the server
         }
         let snapshot = t.clone();
+        let db_clone = db_path.clone();
         added += tokio::task::spawn_blocking(move || {
             store::persist_threads(
-                &mut MessageStore::open(DB_PATH)?,
+                &mut MessageStore::open(&db_clone)?,
                 std::slice::from_ref(&snapshot),
             )
         })
