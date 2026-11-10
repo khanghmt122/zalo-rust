@@ -5164,7 +5164,7 @@ pub fn is_zalo_photo_cdn_url(url: &str) -> bool {
     }
     // Direct image file extensions anywhere
     if [
-        ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".ico", ".jfif", ".tiff",
+        ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".ico", ".jfif", ".tiff", ".jxl",
     ]
     .iter()
     .any(|ext| path_part.ends_with(ext))

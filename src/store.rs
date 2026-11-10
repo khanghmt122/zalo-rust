@@ -1033,6 +1033,138 @@ fn scan_and_import_zalo_data_dir(
         }
     }
 
+    // 5. Scan media directory for downloaded resources (pictures, videos, files)
+    let _ = scan_and_import_zalo_media_resources(root, dst, &id_to_name, report);
+
+    Ok(())
+}
+
+/// Scan Zalo PC's `media/<uid>/ZaloDownloads/resource/<thread>/picture` directory and import photos.
+fn scan_and_import_zalo_media_resources(
+    root: &std::path::Path,
+    dst: &mut MessageStore,
+    id_to_name: &std::collections::HashMap<String, (String, bool)>,
+    report: &mut ImportReport,
+) -> Result<()> {
+    let media_root = root.join("media");
+    if !media_root.is_dir() {
+        return Ok(());
+    }
+
+    let out_media_dir = std::path::Path::new("media");
+    let _ = std::fs::create_dir_all(&out_media_dir);
+
+    let Ok(u_entries) = std::fs::read_dir(&media_root) else {
+        return Ok(());
+    };
+
+    for u_entry in u_entries.flatten() {
+        let u_path = u_entry.path();
+        if !u_path.is_dir() {
+            continue;
+        }
+        let my_uid = u_path.file_name().and_then(|s| s.to_str()).unwrap_or_default().to_string();
+        let res_dir = u_path.join("ZaloDownloads").join("resource");
+        if !res_dir.is_dir() {
+            continue;
+        }
+
+        let Ok(thread_dirs) = std::fs::read_dir(&res_dir) else {
+            continue;
+        };
+
+        for t_entry in thread_dirs.flatten() {
+            let t_path = t_entry.path();
+            if !t_path.is_dir() {
+                continue;
+            }
+            let raw_tid = t_path.file_name().and_then(|s| s.to_str()).unwrap_or_default().to_string();
+            let canon_tid = raw_tid.strip_prefix('g').unwrap_or(&raw_tid).to_string();
+            let (t_name, _is_group) = id_to_name.get(&canon_tid).cloned().unwrap_or_else(|| {
+                (format!("Hội thoại {canon_tid}"), raw_tid.starts_with('g'))
+            });
+
+            let pic_dir = t_path.join("picture");
+            if !pic_dir.is_dir() {
+                continue;
+            }
+
+            let Ok(p_entries) = std::fs::read_dir(&pic_dir) else {
+                continue;
+            };
+
+            let mut added = 0;
+            for p_entry in p_entries.flatten() {
+                let p_path = p_entry.path();
+                let f_name = p_path.file_name().and_then(|s| s.to_str()).unwrap_or_default();
+                if f_name.starts_with('.') {
+                    continue;
+                }
+                let ext = p_path.extension().and_then(|s| s.to_str()).unwrap_or_default().to_ascii_lowercase();
+                let stem = p_path.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+
+                let target_fname = if ext == "jxl" {
+                    format!("{stem}.png")
+                } else {
+                    f_name.to_string()
+                };
+                let target_path = out_media_dir.join(&target_fname);
+
+                if !target_path.exists() {
+                    #[cfg(target_os = "macos")]
+                    if ext == "jxl" {
+                        let _ = std::process::Command::new("sips")
+                            .args(["-s", "format", "png"])
+                            .arg(&p_path)
+                            .arg("--out")
+                            .arg(&target_path)
+                            .output();
+                    } else {
+                        let _ = std::fs::copy(&p_path, &target_path);
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    let _ = std::fs::copy(&p_path, &target_path);
+                }
+
+                let parts: Vec<&str> = stem.split('_').collect();
+                let ts: i64 = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
+                let from_uid = parts.get(1).copied().unwrap_or_default();
+                let is_outgoing = from_uid == my_uid || from_uid == "0";
+                let sender_name = if is_outgoing { "Tôi".to_string() } else { t_name.clone() };
+                let msg_id = format!("pic_{ts}_{}", parts.last().map(|s| &s[..s.len().min(12)]).unwrap_or(stem));
+
+                let abs_target = std::fs::canonicalize(&target_path).unwrap_or_else(|_| target_path.clone());
+                let local_uri = format!("local://{}", abs_target.to_string_lossy());
+
+                let raw_json = serde_json::json!({
+                    "link_url": local_uri,
+                    "link_thumb": local_uri,
+                    "link_src": "Hình ảnh Zalo",
+                    "oriUrl": local_uri,
+                    "thumbUrl": local_uri
+                }).to_string();
+
+                let sm = StoredMessage {
+                    msg_id,
+                    thread_id: canon_tid.clone(),
+                    sender_id: from_uid.to_string(),
+                    sender_name,
+                    text: "[Hình ảnh]".to_string(),
+                    msg_type: "chat.photo".to_string(),
+                    ts,
+                    is_outgoing,
+                    raw_json,
+                };
+                if dst.upsert_message(&sm).unwrap_or(false) {
+                    added += 1;
+                }
+            }
+            if added > 0 {
+                report.messages_imported += added;
+                report.sources_read.push(format!("ZaloPC Media: {t_name} ({added} ảnh)"));
+            }
+        }
+    }
     Ok(())
 }
 

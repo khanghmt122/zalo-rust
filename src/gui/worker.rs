@@ -2686,7 +2686,23 @@ pub(super) fn spawn_session_worker(session: Session, gui_tx: GuiTx, egui_ctx: eg
                                         && !url.starts_with("https://")
                                     {
                                         let file_path = url.strip_prefix("local://").unwrap_or(&url);
-                                        (std::fs::read(file_path).ok(), false)
+                                        let mut raw_bytes = std::fs::read(file_path).ok();
+                                        #[cfg(target_os = "macos")]
+                                        if file_path.ends_with(".jxl") && raw_bytes.is_some() {
+                                            let png_tmp = cache_dir.join(format!("{key}.png"));
+                                            let sips_res = std::process::Command::new("sips")
+                                                .args(["-s", "format", "png", file_path, "--out"])
+                                                .arg(&png_tmp)
+                                                .output();
+                                            if let Ok(out) = sips_res {
+                                                if out.status.success() {
+                                                    if let Ok(png_b) = std::fs::read(&png_tmp) {
+                                                        raw_bytes = Some(png_b);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        (raw_bytes, false)
                                     } else {
                                         let client = { session_clone.lock().await.clone().http };
                                         let fetch_url = crate::store::jxl_to_jpg_url(&url);
