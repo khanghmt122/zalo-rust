@@ -92,3 +92,16 @@ Thumbs.db
 
 # Sync v2 private keys (NEVER COMMIT)
 sync_v2_keys.json
+
+# Local user session & database
+session.json
+*.db
+*.db-wal
+*.db-shm
+threads_cache.json
+app_settings.json
+stickers_cache/
+accounts/
+*.app
+dist/
+

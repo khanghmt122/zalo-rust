@@ -3642,7 +3642,7 @@ pub(super) fn spawn_session_worker(session: Session, gui_tx: GuiTx, egui_ctx: eg
         .expect("Failed to spawn zalo-worker thread");
 }
 
-const GITHUB_REPO: &str = "ctdoteam1110/ctdozlite";
+const GITHUB_REPO: &str = "khanghmt122/zalo-rust";
 
 pub(crate) async fn fetch_github_latest_release() -> Result<UpdateCheckResult, String> {
     let current_ver = env!("CARGO_PKG_VERSION").to_string();
