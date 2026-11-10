@@ -227,7 +227,11 @@ where
                     confirmed = true;
                     on_progress(0.40, st.clone());
                     break;
-                } else if st.contains("từ chối") {
+                } else if st.contains("từ chối")
+                    || st.contains("Khóa tạm")
+                    || st.contains("hết hạn")
+                    || st.contains("báo lỗi")
+                {
                     on_progress(1.0, st.clone());
                     return Ok((0, 0));
                 } else {
@@ -244,7 +248,13 @@ where
                     if st.contains("thành công") {
                         on_progress(1.0, st.clone());
                         break;
-                    } else if st.contains("Không thể") || st.contains("thất bại") {
+                    } else if st.contains("Không thể")
+                        || st.contains("thất bại")
+                        || st.contains("từ chối")
+                        || st.contains("Khóa tạm")
+                        || st.contains("hết hạn")
+                        || st.contains("báo lỗi")
+                    {
                         on_progress(1.0, st.clone());
                         break;
                     } else {

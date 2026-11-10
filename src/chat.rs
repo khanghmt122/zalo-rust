@@ -7678,6 +7678,12 @@ pub enum MobileSyncControlEvent {
         batch_type: u8,
         is_last: bool,
     },
+    /// `act == "transfer_error"` — phone/server reported an error (e.g. `temp key invalid`).
+    TransferError {
+        error_code: i64,
+        error_msg: String,
+        can_retry: bool,
+    },
 }
 
 /// Extract `transfer_msg` / `syncmsgmb` / `transfer_sync2` events from a control payload.
@@ -7819,6 +7825,27 @@ pub fn extract_mobile_sync_controls(data_node: &Value) -> Vec<MobileSyncControlE
                         checksum,
                     });
                 }
+            }
+            "transfer_error" => {
+                let err_code = parsed_data
+                    .get("error_code")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(-1);
+                let err_msg = parsed_data
+                    .get("error_msg")
+                    .and_then(Value::as_str)
+                    .unwrap_or("Lỗi đồng bộ từ điện thoại")
+                    .to_string();
+                let can_retry = parsed_data
+                    .get("can_retry")
+                    .and_then(Value::as_i64)
+                    .map(|v| v != 0)
+                    .unwrap_or(false);
+                out.push(MobileSyncControlEvent::TransferError {
+                    error_code: err_code,
+                    error_msg: err_msg,
+                    can_retry,
+                });
             }
             _ => {}
         }
@@ -9345,6 +9372,33 @@ mod send_identity_tests {
                 file_name: "backup.zdb".into(),
                 encrypted_key: "enc_key_b64".into(),
                 checksum: "md5_123".into(),
+            }
+        );
+
+        let err_payload = json!({
+            "controls": [
+                {
+                    "content": {
+                        "act": "transfer_error",
+                        "act_type": "syncmsgmb",
+                        "data": {
+                            "can_retry": 1,
+                            "error_code": -1,
+                            "error_msg": "temp key invalid",
+                            "pc_name": "DESKTOP"
+                        }
+                    }
+                }
+            ]
+        });
+        let err_evs = extract_mobile_sync_controls(&err_payload);
+        assert_eq!(err_evs.len(), 1);
+        assert_eq!(
+            err_evs[0],
+            MobileSyncControlEvent::TransferError {
+                error_code: -1,
+                error_msg: "temp key invalid".into(),
+                can_retry: true,
             }
         );
     }

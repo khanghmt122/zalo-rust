@@ -586,7 +586,7 @@ pub(super) fn spawn_session_worker(session: Session, gui_tx: GuiTx, egui_ctx: eg
                                                             let _ = wtx.send(
                                                                 WorkerCmd::SyncPhoneMessages {
                                                                     threads: known,
-                                                                    send_phone_prompt: false,
+                                                                    send_phone_prompt: true,
                                                                 },
                                                             );
                                                         }
@@ -613,6 +613,19 @@ pub(super) fn spawn_session_worker(session: Session, gui_tx: GuiTx, egui_ctx: eg
                                                         let note = "⚠️ Bạn đã từ chối yêu cầu đồng bộ tin nhắn trên điện thoại".to_string();
                                                         crate::history_sync::set_last_mobile_sync_status(Some(note.clone()));
                                                         let _ = gui_tx_ws.send(GuiEvent::StatusUpdate(note));
+                                                        ctx_ws.request_repaint();
+                                                    }
+                                                    crate::chat::MobileSyncControlEvent::TransferError {
+                                                        error_msg,
+                                                        ..
+                                                    } => {
+                                                        let friendly = if error_msg.contains("temp key invalid") {
+                                                            "⚠️ Điện thoại từ chối đồng bộ: Khóa tạm hết hạn (temp key invalid). Vui lòng đăng xuất và quét QR lại để đồng bộ ngay khi đăng nhập.".to_string()
+                                                        } else {
+                                                            format!("⚠️ Điện thoại báo lỗi đồng bộ: {error_msg}")
+                                                        };
+                                                        crate::history_sync::set_last_mobile_sync_status(Some(friendly.clone()));
+                                                        let _ = gui_tx_ws.send(GuiEvent::StatusUpdate(friendly));
                                                         ctx_ws.request_repaint();
                                                     }
                                                     crate::chat::MobileSyncControlEvent::BackupReady {
@@ -1631,6 +1644,19 @@ pub(super) fn spawn_session_worker(session: Session, gui_tx: GuiTx, egui_ctx: eg
                                                             let note = "⚠️ Bạn đã từ chối yêu cầu đồng bộ tin nhắn trên điện thoại".to_string();
                                                             crate::history_sync::set_last_mobile_sync_status(Some(note.clone()));
                                                             let _ = gui_tx_clone.send(GuiEvent::StatusUpdate(note));
+                                                            ctx_clone.request_repaint();
+                                                        }
+                                                        crate::chat::MobileSyncControlEvent::TransferError {
+                                                            error_msg,
+                                                            ..
+                                                        } => {
+                                                            let friendly = if error_msg.contains("temp key invalid") {
+                                                                "⚠️ Điện thoại từ chối đồng bộ: Khóa tạm hết hạn (temp key invalid). Vui lòng đăng xuất và quét QR lại để đồng bộ ngay khi đăng nhập.".to_string()
+                                                            } else {
+                                                                format!("⚠️ Điện thoại báo lỗi đồng bộ: {error_msg}")
+                                                            };
+                                                            crate::history_sync::set_last_mobile_sync_status(Some(friendly.clone()));
+                                                            let _ = gui_tx_clone.send(GuiEvent::StatusUpdate(friendly));
                                                             ctx_clone.request_repaint();
                                                         }
                                                         crate::chat::MobileSyncControlEvent::BackupReady {
