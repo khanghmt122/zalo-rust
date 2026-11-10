@@ -1039,6 +1039,37 @@ fn scan_and_import_zalo_data_dir(
     Ok(())
 }
 
+/// Silently scan Zalo PC's default resource directory and import any new photos in the background.
+pub fn scan_and_import_zalo_media_silently() {
+    #[cfg(target_os = "macos")]
+    let default_zalodata = std::env::var("HOME").ok().map(|h| {
+        std::path::PathBuf::from(h).join("Library/Application Support/ZaloData")
+    });
+    #[cfg(not(target_os = "macos"))]
+    let default_zalodata = std::env::var("APPDATA").ok().map(|a| {
+        std::path::PathBuf::from(a).join("ZaloData")
+    });
+
+    let Some(zalo_dir) = default_zalodata else { return };
+    if !zalo_dir.is_dir() {
+        return;
+    }
+
+    let Ok(mut dst) = MessageStore::open("zalo_history.db") else {
+        return;
+    };
+
+    let mut id_to_name = std::collections::HashMap::new();
+    if let Ok(threads) = dst.all_threads() {
+        for t in threads {
+            id_to_name.insert(t.thread_id, (t.name, t.is_group));
+        }
+    }
+
+    let mut report = ImportReport::default();
+    let _ = scan_and_import_zalo_media_resources(&zalo_dir, &mut dst, &id_to_name, &mut report);
+}
+
 /// Scan Zalo PC's `media/<uid>/ZaloDownloads/resource/<thread>/picture` directory and import photos.
 fn scan_and_import_zalo_media_resources(
     root: &std::path::Path,

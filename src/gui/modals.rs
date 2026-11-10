@@ -6544,6 +6544,29 @@ impl ZaloGuiApp {
             return;
         }
 
+        // Global shortcuts inside Image Viewer:
+        // Cmd+S: Save file
+        let is_save = ctx.input(|i| (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::S));
+        if is_save {
+            self.save_image_viewer_file(&viewer);
+        }
+
+        // Cmd+C: Copy image to clipboard
+        let is_copy = ctx.input(|i| (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::C));
+        if is_copy {
+            self.copy_image_viewer_to_clipboard(&viewer, ctx);
+        }
+
+        // Arrow navigation: Previous / Next image in thread gallery
+        let go_prev = ctx.input(|i| i.key_pressed(Key::ArrowLeft));
+        let go_next = ctx.input(|i| i.key_pressed(Key::ArrowRight));
+        let mut switch_to_idx: Option<usize> = None;
+        if go_prev && viewer.current_idx > 0 {
+            switch_to_idx = Some(viewer.current_idx - 1);
+        } else if go_next && viewer.current_idx + 1 < viewer.items.len() {
+            switch_to_idx = Some(viewer.current_idx + 1);
+        }
+
         let screen_rect = ctx.screen_rect();
         // Start below the 32px custom frameless title bar so window controls stay accessible
         let viewer_top = (screen_rect.top() + 32.0).min(screen_rect.bottom());
@@ -6621,9 +6644,9 @@ impl ZaloGuiApp {
                     ui.allocate_exact_size(stage_area_rect.size(), Sense::click_and_drag());
                 let painter = ui.painter().with_clip_rect(bg_rect);
                 let bg_col = if pal.is_dark {
-                    Color32::from_rgba_unmultiplied(24, 26, 31, 244)
+                    Color32::from_rgba_unmultiplied(18, 20, 24, 248)
                 } else {
-                    Color32::from_rgba_unmultiplied(24, 28, 36, 228)
+                    Color32::from_rgba_unmultiplied(24, 28, 36, 235)
                 };
                 painter.rect_filled(bg_rect, Rounding::ZERO, bg_col);
 
@@ -6683,9 +6706,73 @@ impl ZaloGuiApp {
                         should_close = true;
                     }
                 }
+
+                // 2. Floating Navigation Arrows on Left and Right sides of stage
+                if viewer.items.len() > 1 {
+                    if viewer.current_idx > 0 {
+                        let left_center = Pos2::new(bg_rect.left() + 36.0, bg_rect.center().y);
+                        let left_rect = Rect::from_center_size(left_center, Vec2::splat(44.0));
+                        let left_hover = bg_resp.hover_pos().map(|p| left_rect.contains(p)).unwrap_or(false);
+                        painter.circle_filled(
+                            left_center,
+                            22.0,
+                            if left_hover {
+                                Color32::from_rgba_unmultiplied(40, 44, 52, 230)
+                            } else {
+                                Color32::from_rgba_unmultiplied(30, 32, 38, 160)
+                            },
+                        );
+                        painter.circle_stroke(
+                            left_center,
+                            22.0,
+                            Stroke::new(1.0_f32, pal.border),
+                        );
+                        draw_lucide_icon(
+                            &painter,
+                            left_center,
+                            lucide::CHEVRON_LEFT,
+                            20.0,
+                            Color32::WHITE,
+                        );
+                        if left_hover && ctx.input(|i| i.pointer.primary_clicked()) {
+                            switch_to_idx = Some(viewer.current_idx - 1);
+                        }
+                    }
+
+                    if viewer.current_idx + 1 < viewer.items.len() {
+                        let right_center = Pos2::new(bg_rect.right() - 36.0, bg_rect.center().y);
+                        let right_rect = Rect::from_center_size(right_center, Vec2::splat(44.0));
+                        let right_hover = bg_resp.hover_pos().map(|p| right_rect.contains(p)).unwrap_or(false);
+                        painter.circle_filled(
+                            right_center,
+                            22.0,
+                            if right_hover {
+                                Color32::from_rgba_unmultiplied(40, 44, 52, 230)
+                            } else {
+                                Color32::from_rgba_unmultiplied(30, 32, 38, 160)
+                            },
+                        );
+                        painter.circle_stroke(
+                            right_center,
+                            22.0,
+                            Stroke::new(1.0_f32, pal.border),
+                        );
+                        draw_lucide_icon(
+                            &painter,
+                            right_center,
+                            lucide::CHEVRON_RIGHT,
+                            20.0,
+                            Color32::WHITE,
+                        );
+                        if right_hover && ctx.input(|i| i.pointer.primary_clicked()) {
+                            switch_to_idx = Some(viewer.current_idx + 1);
+                        }
+                    }
+                }
             });
+
         // 3. Clean Unified Top Toolbar Bar (docked under custom title bar, matching Atom One Dark pal.bg_sidebar)
-        let clean_title = {
+        let clean_title: String = {
             let mut t = viewer.title.trim().trim_start_matches(lucide::IMAGE).trim();
             if let Some(paren_idx) = t.rfind(" (") {
                 if t[paren_idx..].contains('×')
@@ -6696,11 +6783,14 @@ impl ZaloGuiApp {
                 }
             }
             if t.is_empty() {
-                "Hình ảnh đính kèm"
+                "Hình ảnh đính kèm".to_string()
             } else {
-                t
+                t.to_string()
             }
         };
+
+        let mut trigger_save = false;
+        let mut trigger_copy = false;
 
         egui::Area::new(Id::new("image_viewer_top_bar"))
             .order(egui::Order::Tooltip)
@@ -6734,12 +6824,26 @@ impl ZaloGuiApp {
                             ui.add_space(4.0);
                             ui.vertical(|ui| {
                                 ui.spacing_mut().item_spacing.y = 1.0;
-                                ui.label(
-                                    RichText::new(truncate_chars(clean_title, 44))
-                                        .size(13.0)
-                                        .color(pal.text_primary)
-                                        .strong(),
-                                );
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new(truncate_chars(&clean_title, 38))
+                                            .size(13.0)
+                                            .color(pal.text_primary)
+                                            .strong(),
+                                    );
+                                    if viewer.items.len() > 1 {
+                                        let idx_txt = format!("{}/{}", viewer.current_idx + 1, viewer.items.len());
+                                        let (tag_r, _) = ui.allocate_exact_size(Vec2::new(42.0, 18.0), Sense::hover());
+                                        ui.painter().rect_filled(tag_r, Rounding::same(4.0), pal.bg_input);
+                                        ui.painter().text(
+                                            tag_r.center(),
+                                            egui::Align2::CENTER_CENTER,
+                                            idx_txt,
+                                            FontId::proportional(11.0),
+                                            pal.primary_hover,
+                                        );
+                                    }
+                                });
                                 let dim_str = match natural_dims {
                                     Some((tw, th)) => format!(" · {tw}×{th} px"),
                                     None => String::new(),
@@ -6789,17 +6893,55 @@ impl ZaloGuiApp {
                                 );
                                 if close_resp
                                     .on_hover_cursor(CursorIcon::PointingHand)
-                                    .on_hover_text("Đóng xem ảnh (Esc)")
+                                    .on_hover_text("Đóng xem ảnh (Esc hoặc Cmd+W)")
                                     .clicked()
                                 {
                                     should_close = true;
+                                }
+
+                                // Save to Downloads Button (Cmd+S)
+                                let save_btn = egui::Button::new(
+                                    RichText::new(format!("{} Lưu ảnh", lucide::DOWNLOAD))
+                                        .size(11.8)
+                                        .color(pal.text_primary),
+                                )
+                                .fill(pal.bg_elevated)
+                                .stroke(Stroke::new(1.0_f32, pal.border))
+                                .rounding(Rounding::same(6.0))
+                                .min_size(Vec2::new(82.0, 28.0));
+                                if ui
+                                    .add(save_btn)
+                                    .on_hover_cursor(CursorIcon::PointingHand)
+                                    .on_hover_text("Lưu ảnh vào thư mục Downloads (Cmd+S)")
+                                    .clicked()
+                                {
+                                    trigger_save = true;
+                                }
+
+                                // Copy to Clipboard Button (Cmd+C)
+                                let copy_btn = egui::Button::new(
+                                    RichText::new(format!("{} Sao chép", lucide::COPY))
+                                        .size(11.8)
+                                        .color(pal.text_secondary),
+                                )
+                                .fill(pal.bg_elevated)
+                                .stroke(Stroke::new(1.0_f32, pal.border))
+                                .rounding(Rounding::same(6.0))
+                                .min_size(Vec2::new(80.0, 28.0));
+                                if ui
+                                    .add(copy_btn)
+                                    .on_hover_cursor(CursorIcon::PointingHand)
+                                    .on_hover_text("Sao chép hình ảnh vào bộ nhớ tạm (Cmd+C)")
+                                    .clicked()
+                                {
+                                    trigger_copy = true;
                                 }
 
                                 if !viewer.full_url.is_empty() {
                                     let ext_btn = egui::Button::new(
                                         RichText::new(format!("{} Mở gốc", lucide::EXTERNAL_LINK))
                                             .size(11.8)
-                                            .color(pal.text_primary),
+                                            .color(pal.text_secondary),
                                     )
                                     .fill(pal.bg_elevated)
                                     .stroke(Stroke::new(1.0_f32, pal.border))
@@ -6812,24 +6954,6 @@ impl ZaloGuiApp {
                                         .clicked()
                                     {
                                         open_external_url(&viewer.full_url);
-                                    }
-
-                                    let copy_btn = egui::Button::new(
-                                        RichText::new(format!("{} Sao chép", lucide::COPY))
-                                            .size(11.8)
-                                            .color(pal.text_secondary),
-                                    )
-                                    .fill(pal.bg_elevated)
-                                    .stroke(Stroke::new(1.0_f32, pal.border))
-                                    .rounding(Rounding::same(6.0))
-                                    .min_size(Vec2::new(78.0, 28.0));
-                                    if ui
-                                        .add(copy_btn)
-                                        .on_hover_cursor(CursorIcon::PointingHand)
-                                        .clicked()
-                                    {
-                                        ui.ctx().copy_text(viewer.full_url.clone());
-                                        self.show_toast("Đã sao chép đường dẫn ảnh vào bộ nhớ tạm");
                                     }
                                 }
 
@@ -6899,6 +7023,27 @@ impl ZaloGuiApp {
                         });
                     });
             });
+
+        if trigger_save {
+            self.save_image_viewer_file(&viewer);
+        }
+        if trigger_copy {
+            self.copy_image_viewer_to_clipboard(&viewer, ctx);
+        }
+
+        if let Some(target_idx) = switch_to_idx {
+            if let Some(item) = viewer.items.get(target_idx) {
+                viewer.current_idx = target_idx;
+                viewer.tex_key = item.tex_key.clone();
+                viewer.full_url = item.full_url.clone();
+                viewer.title = item.title.clone();
+                viewer.sender = item.sender.clone();
+                viewer.time = item.time.clone();
+                viewer.hd_tex_key = self.request_hd_texture(&viewer.full_url);
+                viewer.zoom = 1.0;
+                viewer.pan = Vec2::ZERO;
+            }
+        }
 
         if should_close {
             self.image_viewer = None;
@@ -8057,16 +8202,14 @@ impl ZaloGuiApp {
                             );
                             if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() {
                                 let hd = self.request_hd_texture(&prof.cover_url);
-                                self.image_viewer = Some(ImageViewerModal {
-                                    tex_key: ckey,
-                                    hd_tex_key: hd,
-                                    full_url: prof.cover_url.clone(),
-                                    title: format!("Ảnh bìa của {}", prof.display_name),
-                                    sender: prof.display_name.clone(),
-                                    time: String::new(),
-                                    zoom: 1.0,
-                                    pan: Vec2::ZERO,
-                                });
+                                self.image_viewer = Some(ImageViewerModal::single(
+                                    ckey,
+                                    hd,
+                                    prof.cover_url.clone(),
+                                    format!("Ảnh bìa của {}", prof.display_name),
+                                    prof.display_name.clone(),
+                                    String::new(),
+                                ));
                             }
                             ui.add_space(12.0);
                         }
@@ -8512,16 +8655,14 @@ impl ZaloGuiApp {
         }
         if let Some((tkey, full_u, title, sender)) = clicked_image {
             let hd = self.request_hd_texture(&full_u);
-            self.image_viewer = Some(ImageViewerModal {
-                tex_key: tkey,
-                hd_tex_key: hd,
-                full_url: full_u,
+            self.image_viewer = Some(ImageViewerModal::single(
+                tkey,
+                hd,
+                full_u,
                 title,
                 sender,
-                time: String::new(),
-                zoom: 1.0,
-                pan: Vec2::ZERO,
-            });
+                String::new(),
+            ));
         }
     }
 
@@ -8585,16 +8726,14 @@ impl ZaloGuiApp {
                         }
                         if resp.on_hover_cursor(CursorIcon::PointingHand).clicked() {
                             let hd = self.request_hd_texture(&item.url);
-                            self.image_viewer = Some(ImageViewerModal {
-                                tex_key: tkey,
-                                hd_tex_key: hd,
-                                full_url: item.url.clone(),
-                                title: format!("Ảnh Nhật ký ({})", item.photo_id),
-                                sender: self.user_name.clone(),
-                                time: String::new(),
-                                zoom: 1.0,
-                                pan: Vec2::ZERO,
-                            });
+                            self.image_viewer = Some(ImageViewerModal::single(
+                                tkey,
+                                hd,
+                                item.url.clone(),
+                                format!("Ảnh Nhật ký ({})", item.photo_id),
+                                self.user_name.clone(),
+                                String::new(),
+                            ));
                         }
                     }
                 });

@@ -1699,54 +1699,7 @@ impl ZaloGuiApp {
                 }
                 if let Some((idx, tid, is_group)) = clicked_thread {
                     let resolved_idx = self.threads.iter().position(|t| t.id == tid).unwrap_or(idx);
-                    if self.selected_thread_index != resolved_idx {
-                        self.replying_to = None;
-                        self.filter_starred_only = false;
-                        self.force_scroll_to_bottom = true;
-                        self.chat_render_window = (tid.clone(), CHAT_RENDER_STEP);
-                    }
-                    self.selected_thread_index = resolved_idx;
-                    if self.unread_counts.remove(&tid).is_some() {
-                        let total_unread: usize = self.unread_counts.values().sum();
-                        let title = if total_unread > 0 {
-                            format!("({total_unread}) Zalo Lite — Native Rust Client")
-                        } else {
-                            "Zalo Lite — Native Rust Client".to_string()
-                        };
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
-                    }
-                    // Persist the read-point so reopening the app does not recount read messages (#119).
-                    if let Some(t) = self.threads.get_mut(resolved_idx) {
-                        if let Some(last) = t.messages.last() {
-                            let mid = last.id.clone();
-                            t.unread.last_seen_id = Some(mid.clone());
-                            let tid_c = tid.clone();
-                            let uin_c = self.user_uin.clone();
-                            std::thread::spawn(move || {
-                                let db = crate::store::db_path_for_account(&uin_c);
-                                if let Ok(mut store) = crate::store::MessageStore::open(&db) {
-                                    let _ = store.set_thread_read(&tid_c, &mid);
-                                }
-                            });
-                        }
-                    }
-                    if !self.settings.block_seen {
-                        let last_mid = self
-                            .threads
-                            .get(resolved_idx)
-                            .and_then(|t| t.messages.last())
-                            .map(|m| m.id.clone())
-                            .unwrap_or_default();
-                        if !last_mid.is_empty() {
-                            if let Some(tx) = WORKER_TX.get() {
-                                let _ = tx.send(WorkerCmd::SendSeen {
-                                    thread_id: tid.clone(),
-                                    is_group,
-                                    last_msg_id: last_mid,
-                                });
-                            }
-                        }
-                    }
+                    self.select_thread_by_index(ctx, resolved_idx);
                     let is_cloud = self
                         .threads
                         .get(resolved_idx)
@@ -1811,9 +1764,9 @@ impl ZaloGuiApp {
                             }
                             let total_unread: usize = self.unread_counts.values().sum();
                             let title = if total_unread > 0 {
-                                format!("({total_unread}) Zalo Lite — Native Rust Client")
+                                format!("({total_unread}) zaluu")
                             } else {
-                                "Zalo Lite — Native Rust Client".to_string()
+                                "zaluu".to_string()
                             };
                             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
                             if let Some(tx) = WORKER_TX.get() {
@@ -2473,16 +2426,13 @@ impl ZaloGuiApp {
                                                 .on_hover_text("Xem ảnh phóng to")
                                                 .clicked()
                                             {
-                                                self.image_viewer = Some(ImageViewerModal {
-                                                    tex_key: tkey.clone(),
-                                                    hd_tex_key: self.request_hd_texture(full_u),
-                                                    full_url: full_u.clone(),
-                                                    title: ptitle.clone(),
-                                                    sender: d_name.clone(),
-                                                    time: String::new(),
-                                                    zoom: 1.0,
-                                                    pan: Vec2::ZERO,
-                                                });
+                                                self.open_image_viewer_for_url(
+                                                    full_u,
+                                                    ptitle,
+                                                    d_name,
+                                                    "",
+                                                    &tkey,
+                                                );
                                             }
                                         }
                                     });
@@ -4324,17 +4274,13 @@ impl ZaloGuiApp {
                                     sender,
                                     time,
                                 } => {
-                                    let hd_tex_key = self.request_hd_texture(&full_url);
-                                    self.image_viewer = Some(ImageViewerModal {
-                                        tex_key,
-                                        hd_tex_key,
-                                        full_url,
-                                        title,
-                                        sender,
-                                        time,
-                                        zoom: 1.0,
-                                        pan: Vec2::ZERO,
-                                    });
+                                    self.open_image_viewer_for_url(
+                                        &full_url,
+                                        &title,
+                                        &sender,
+                                        &time,
+                                        &tex_key,
+                                    );
                                 }
                                 BubbleAction::DownloadFile { url, file_name } => {
                                     self.show_toast(format!(
@@ -4875,6 +4821,81 @@ impl ZaloGuiApp {
                                                 if let Some(tx) = WORKER_TX.get() {
                                                     let _ = tx.send(WorkerCmd::TriggerScreenshot);
                                                     self.show_toast("Đang bật chế độ chụp màn hình… Kéo chuột để chọn vùng cần chụp");
+                                                }
+                                            }
+
+                                            // 5) Voice Message Record Button (Tin nhắn thoại)
+                                            let is_rec = self.voice_recorder.is_some();
+                                            let (mic_rect, mic_resp) = ui.allocate_exact_size(
+                                                Vec2::new(34.0, 34.0),
+                                                Sense::click(),
+                                            );
+                                            let mic_bg = if is_rec {
+                                                pal.danger
+                                            } else if mic_resp.hovered() {
+                                                pal.bg_hover
+                                            } else {
+                                                Color32::TRANSPARENT
+                                            };
+                                            if mic_bg != Color32::TRANSPARENT {
+                                                ui.painter().rect_filled(
+                                                    mic_rect,
+                                                    Rounding::same(8.0),
+                                                    mic_bg,
+                                                );
+                                            }
+                                            let mic_col = if is_rec {
+                                                Color32::WHITE
+                                            } else if mic_resp.hovered() {
+                                                pal.primary_hover
+                                            } else {
+                                                pal.text_secondary
+                                            };
+                                            draw_lucide_icon(
+                                                ui.painter(),
+                                                mic_rect.center(),
+                                                lucide::MIC,
+                                                18.0,
+                                                mic_col,
+                                            );
+                                            let mic_tooltip = if is_rec {
+                                                "Đang ghi âm… Bấm để DỪNG và GỬI tin nhắn thoại"
+                                            } else {
+                                                "Ghi âm & gửi tin nhắn thoại"
+                                            };
+                                            if mic_resp
+                                                .on_hover_cursor(CursorIcon::PointingHand)
+                                                .on_hover_text(mic_tooltip)
+                                                .clicked()
+                                            {
+                                                self.toggle_voice_recording(&thread_id, is_group);
+                                            }
+
+                                            // If recording is active, show live duration pill and Cancel button
+                                            if let Some(ref rec) = self.voice_recorder {
+                                                ctx.request_repaint_after(std::time::Duration::from_millis(200));
+                                                let elapsed = rec.duration().as_secs();
+                                                let time_str = format!("🔴 {:02}:{:02}", elapsed / 60, elapsed % 60);
+                                                let (pill_r, _) = ui.allocate_exact_size(
+                                                    Vec2::new(66.0, 26.0),
+                                                    Sense::hover(),
+                                                );
+                                                ui.painter().rect_filled(pill_r, Rounding::same(13.0), pal.bg_input);
+                                                ui.painter().text(
+                                                    pill_r.center(),
+                                                    egui::Align2::CENTER_CENTER,
+                                                    time_str,
+                                                    FontId::proportional(12.0),
+                                                    pal.danger,
+                                                );
+
+                                                let cancel_btn = egui::Button::new(
+                                                    RichText::new("Huỷ").size(11.5).color(pal.text_muted),
+                                                )
+                                                .fill(pal.bg_elevated)
+                                                .rounding(Rounding::same(6.0));
+                                                if ui.add(cancel_btn).clicked() {
+                                                    self.cancel_voice_recording();
                                                 }
                                             }
 

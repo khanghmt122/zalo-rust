@@ -326,15 +326,88 @@ struct ActiveCallOverlay {
 }
 
 #[derive(Debug, Clone)]
-struct ImageViewerModal {
-    tex_key: String,
-    hd_tex_key: Option<String>,
-    full_url: String,
-    title: String,
-    sender: String,
-    time: String,
-    zoom: f32,
-    pan: Vec2,
+pub(crate) struct ImageViewerItem {
+    pub(crate) tex_key: String,
+    pub(crate) full_url: String,
+    pub(crate) title: String,
+    pub(crate) sender: String,
+    pub(crate) time: String,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ImageViewerModal {
+    pub(crate) items: Vec<ImageViewerItem>,
+    pub(crate) current_idx: usize,
+    pub(crate) tex_key: String,
+    pub(crate) hd_tex_key: Option<String>,
+    pub(crate) full_url: String,
+    pub(crate) title: String,
+    pub(crate) sender: String,
+    pub(crate) time: String,
+    pub(crate) zoom: f32,
+    pub(crate) pan: Vec2,
+}
+
+impl ImageViewerModal {
+    pub(crate) fn single(
+        tex_key: String,
+        hd_tex_key: Option<String>,
+        full_url: String,
+        title: String,
+        sender: String,
+        time: String,
+    ) -> Self {
+        let item = ImageViewerItem {
+            tex_key: tex_key.clone(),
+            full_url: full_url.clone(),
+            title: title.clone(),
+            sender: sender.clone(),
+            time: time.clone(),
+        };
+        Self {
+            items: vec![item],
+            current_idx: 0,
+            tex_key,
+            hd_tex_key,
+            full_url,
+            title,
+            sender,
+            time,
+            zoom: 1.0,
+            pan: Vec2::ZERO,
+        }
+    }
+
+    pub(crate) fn gallery(
+        items: Vec<ImageViewerItem>,
+        current_idx: usize,
+        hd_tex_key: Option<String>,
+    ) -> Self {
+        let idx = current_idx.min(items.len().saturating_sub(1));
+        if let Some(cur) = items.get(idx).cloned() {
+            Self {
+                items,
+                current_idx: idx,
+                tex_key: cur.tex_key,
+                hd_tex_key,
+                full_url: cur.full_url,
+                title: cur.title,
+                sender: cur.sender,
+                time: cur.time,
+                zoom: 1.0,
+                pan: Vec2::ZERO,
+            }
+        } else {
+            Self::single(
+                String::new(),
+                None,
+                String::new(),
+                "Hình ảnh".into(),
+                String::new(),
+                String::new(),
+            )
+        }
+    }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FeedModalTab {
@@ -603,6 +676,7 @@ pub struct ZaloGuiApp {
     pub(crate) last_typing_ping_at: std::time::Instant,
     active_call: Option<ActiveCallOverlay>,
     image_viewer: Option<ImageViewerModal>,
+    pub(crate) voice_recorder: Option<crate::audio::VoiceRecorder>,
 
     info_drawer_open: bool,
     profile_menu_open: bool,
@@ -853,6 +927,7 @@ impl ZaloGuiApp {
             last_typing_ping_at: std::time::Instant::now(),
             active_call: None,
             image_viewer: None,
+            voice_recorder: None,
             status_msg: "Trực tuyến · Sẵn sàng".into(),
             info_drawer_open: loaded_settings.info_drawer_open,
             profile_menu_open: false,
@@ -999,6 +1074,14 @@ impl ZaloGuiApp {
                 let _ = wtx.send(WorkerCmd::RequestQr);
             }
             let _ = wtx.send(WorkerCmd::CheckForUpdates { silent: true });
+        }
+
+        // Silent background scan of Zalo PC media resources (converts .jxl -> .png and imports into zalo_history.db)
+        if is_logged_in {
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                crate::store::scan_and_import_zalo_media_silently();
+            });
         }
         app
     }
@@ -2326,6 +2409,287 @@ impl ZaloGuiApp {
             }
         }
     }
+
+    /// Select a conversation by index, updating read status, unread badge, and titlebar.
+    pub(crate) fn select_thread_by_index(&mut self, ctx: &egui::Context, resolved_idx: usize) {
+        if resolved_idx >= self.threads.len() {
+            return;
+        }
+        let tid = self.threads[resolved_idx].id.clone();
+        let is_group = self.threads[resolved_idx].is_group;
+        if self.selected_thread_index != resolved_idx {
+            self.replying_to = None;
+            self.filter_starred_only = false;
+            self.force_scroll_to_bottom = true;
+            self.chat_render_window = (tid.clone(), CHAT_RENDER_STEP);
+        }
+        self.selected_thread_index = resolved_idx;
+        if self.unread_counts.remove(&tid).is_some() {
+            let total_unread: usize = self.unread_counts.values().sum();
+            let title = if total_unread > 0 {
+                format!("({total_unread}) zaluu")
+            } else {
+                "zaluu".to_string()
+            };
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
+        }
+        // Persist the read-point so reopening the app does not recount read messages (#119).
+        if let Some(t) = self.threads.get_mut(resolved_idx) {
+            if let Some(last) = t.messages.last() {
+                let mid = last.id.clone();
+                t.unread.last_seen_id = Some(mid.clone());
+                let tid_c = tid.clone();
+                let uin_c = self.user_uin.clone();
+                std::thread::spawn(move || {
+                    let db = crate::store::db_path_for_account(&uin_c);
+                    if let Ok(mut store) = crate::store::MessageStore::open(&db) {
+                        let _ = store.set_thread_read(&tid_c, &mid);
+                    }
+                });
+            }
+        }
+        if !self.settings.block_seen {
+            let last_mid = self
+                .threads
+                .get(resolved_idx)
+                .and_then(|t| t.messages.last())
+                .map(|m| m.id.clone())
+                .unwrap_or_default();
+            if !last_mid.is_empty() {
+                if let Some(tx) = WORKER_TX.get() {
+                    let _ = tx.send(WorkerCmd::SendSeen {
+                        thread_id: tid,
+                        is_group,
+                        last_msg_id: last_mid,
+                    });
+                }
+            }
+        }
+    }
+
+    /// Open image viewer for a photo, gathering all photos in the current thread for gallery navigation.
+    pub(crate) fn open_image_viewer_for_url(
+        &mut self,
+        full_url: &str,
+        title: &str,
+        sender: &str,
+        time: &str,
+        tex_key: &str,
+    ) {
+        let mut items = Vec::new();
+        if let Some(thread) = self.threads.get(self.selected_thread_index) {
+            for m in &thread.messages {
+                if let Some(u) = photo_primary_url(m) {
+                    let tk = format!("thumb_{}", crate::crypto::md5_hex(u));
+                    let t_title = m.link_title.clone().unwrap_or_else(|| "Hình ảnh".to_string());
+                    items.push(ImageViewerItem {
+                        tex_key: tk,
+                        full_url: u.to_string(),
+                        title: t_title,
+                        sender: m.sender.clone(),
+                        time: m.time.clone(),
+                    });
+                }
+            }
+        }
+        let current_idx = items
+            .iter()
+            .position(|it| it.full_url == full_url || it.tex_key == tex_key)
+            .unwrap_or_else(|| {
+                items.push(ImageViewerItem {
+                    tex_key: tex_key.to_string(),
+                    full_url: full_url.to_string(),
+                    title: title.to_string(),
+                    sender: sender.to_string(),
+                    time: time.to_string(),
+                });
+                items.len() - 1
+            });
+
+        let cur_item = &items[current_idx];
+        let hd_tex_key = self.request_hd_texture(&cur_item.full_url);
+        self.image_viewer = Some(ImageViewerModal::gallery(items, current_idx, hd_tex_key));
+    }
+
+    /// Save the active viewer image to the Downloads folder and highlight it in Finder (macOS).
+    pub(crate) fn save_image_viewer_file(&mut self, viewer: &ImageViewerModal) {
+        let cached_paths = [
+            viewer.hd_tex_key.as_ref().map(|k| format!("stickers_cache/{k}.png")),
+            Some(format!("stickers_cache/{}.png", viewer.tex_key)),
+        ];
+        let mut found_bytes = None;
+        for cp in cached_paths.into_iter().flatten() {
+            if let Ok(b) = std::fs::read(&cp) {
+                found_bytes = Some(b);
+                break;
+            }
+        }
+        if found_bytes.is_none() {
+            let clean_p = viewer.full_url.strip_prefix("local://").unwrap_or(&viewer.full_url);
+            if let Ok(b) = std::fs::read(clean_p) {
+                found_bytes = Some(b);
+            }
+        }
+
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        let target_dir = std::path::PathBuf::from(&home).join("Downloads");
+        let _ = std::fs::create_dir_all(&target_dir);
+
+        let clean_title = viewer.title.trim();
+        let base_name = if !clean_title.is_empty()
+            && !clean_title.contains("http://")
+            && !clean_title.contains("https://")
+        {
+            clean_title.replace('/', "_").replace('\\', "_")
+        } else {
+            let now = chrono::Local::now().format("%Y%m%d_%H%M%S");
+            format!("zaluu_photo_{now}")
+        };
+        let file_name = if base_name.ends_with(".png")
+            || base_name.ends_with(".jpg")
+            || base_name.ends_with(".jpeg")
+        {
+            base_name
+        } else {
+            format!("{base_name}.png")
+        };
+
+        if let Some(bytes) = found_bytes {
+            let mut out_path = target_dir.join(&file_name);
+            let mut counter = 1;
+            while out_path.exists() {
+                let stem = file_name.strip_suffix(".png").unwrap_or(&file_name);
+                out_path = target_dir.join(format!("{stem} ({counter}).png"));
+                counter += 1;
+            }
+            if std::fs::write(&out_path, bytes).is_ok() {
+                let fname_disp = out_path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or(&file_name);
+                self.show_toast(format!("✅ Đã lưu ảnh vào Downloads/{fname_disp}"));
+                #[cfg(target_os = "macos")]
+                {
+                    let _ = std::process::Command::new("open")
+                        .args(["-R", out_path.to_str().unwrap_or("")])
+                        .spawn();
+                }
+            } else {
+                self.show_toast("⚠️ Lỗi khi ghi tập tin vào Downloads");
+            }
+        } else if !viewer.full_url.is_empty()
+            && (viewer.full_url.starts_with("http://") || viewer.full_url.starts_with("https://"))
+        {
+            self.show_toast(format!("⏳ Đang tải và lưu ảnh '{file_name}'…"));
+            if let Some(tx) = WORKER_TX.get() {
+                let _ = tx.send(WorkerCmd::DownloadFile {
+                    url: viewer.full_url.clone(),
+                    file_name,
+                    download_dir: self.settings.download_dir.clone(),
+                });
+            }
+        }
+    }
+
+    /// Copy the image to the system clipboard (PNG data on macOS, URL fallback).
+    pub(crate) fn copy_image_viewer_to_clipboard(
+        &mut self,
+        viewer: &ImageViewerModal,
+        ctx: &egui::Context,
+    ) {
+        let cached_path = viewer
+            .hd_tex_key
+            .as_ref()
+            .map(|k| format!("stickers_cache/{k}.png"))
+            .filter(|p| std::path::Path::new(p).exists())
+            .or_else(|| {
+                let p = format!("stickers_cache/{}.png", viewer.tex_key);
+                if std::path::Path::new(&p).exists() {
+                    Some(p)
+                } else {
+                    None
+                }
+            })
+            .or_else(|| {
+                let clean_p = viewer
+                    .full_url
+                    .strip_prefix("local://")
+                    .unwrap_or(&viewer.full_url);
+                if std::path::Path::new(clean_p).exists() {
+                    Some(clean_p.to_string())
+                } else {
+                    None
+                }
+            });
+
+        #[cfg(target_os = "macos")]
+        if let Some(ref p) = cached_path {
+            if let Ok(abs_p) = std::fs::canonicalize(p) {
+                let scpt = format!(
+                    "set the clipboard to (read (POSIX file \"{}\") as «class PNGf»)",
+                    abs_p.display()
+                );
+                let _ = std::process::Command::new("osascript")
+                    .arg("-e")
+                    .arg(&scpt)
+                    .output();
+            }
+        }
+
+        ctx.copy_text(viewer.full_url.clone());
+        self.show_toast("✅ Đã sao chép ảnh vào bộ nhớ tạm");
+    }
+
+    /// Toggle microphone recording for sending a voice message.
+    pub(crate) fn toggle_voice_recording(&mut self, thread_id: &str, is_group: bool) {
+        if let Some(recorder) = self.voice_recorder.take() {
+            // Stop and send voice message
+            match recorder.stop_and_encode_wav() {
+                Ok((bytes, dur_secs)) => {
+                    let now = chrono::Local::now().format("%Y%m%d_%H%M%S");
+                    let voice_filename = format!("zaluu_voice_{now}.wav");
+                    let temp_path = std::env::temp_dir().join(&voice_filename);
+                    if std::fs::write(&temp_path, &bytes).is_ok() {
+                        let dur_display = format!("{:.0}s", dur_secs);
+                        self.show_toast(format!("🎙 Đang gửi tin nhắn thoại ({dur_display})…"));
+                        if let Some(tx) = WORKER_TX.get() {
+                            let _ = tx.send(WorkerCmd::PickAndSendAttachment {
+                                to_id: thread_id.to_string(),
+                                is_group,
+                                images_only: false,
+                                caption: format!("[Tin nhắn thoại {dur_display}]"),
+                                preset_path: Some(temp_path),
+                                original_hd: true,
+                            });
+                        }
+                    } else {
+                        self.show_toast("⚠️ Lỗi lưu tập tin âm thanh tạm");
+                    }
+                }
+                Err(e) => {
+                    self.show_toast(format!("⚠️ Lỗi ghi âm: {e}"));
+                }
+            }
+        } else {
+            // Start recording
+            match crate::audio::VoiceRecorder::start() {
+                Ok(rec) => {
+                    self.voice_recorder = Some(rec);
+                    self.show_toast("🎙 Đang ghi âm… Bấm lại biểu tượng Mic để gửi");
+                }
+                Err(e) => {
+                    self.show_toast(format!("⚠️ Không thể bắt đầu ghi âm: {e}"));
+                }
+            }
+        }
+    }
+
+    /// Cancel active voice recording and discard audio.
+    pub(crate) fn cancel_voice_recording(&mut self) {
+        if self.voice_recorder.take().is_some() {
+            self.show_toast("Đã huỷ ghi âm");
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2338,14 +2702,116 @@ impl ZaloGuiApp {
 
 impl eframe::App for ZaloGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(Key::Q))
-            || ctx.input(|i| i.viewport().close_requested())
-        {
+        // 1. Clean Quit (Cmd+Q on macOS, Ctrl+Q on Windows/Linux, or window close)
+        let is_quit = ctx.input(|i| {
+            ((i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::Q))
+                || i.viewport().close_requested()
+        });
+        if is_quit {
             self.allow_quit = true;
             if let Some(tx) = WORKER_TX.get() {
                 let _ = tx.send(WorkerCmd::EndCall);
             }
             std::process::exit(0);
+        }
+
+        // 2. Cmd + , : Open Preferences / Settings
+        let is_open_settings = ctx.input(|i| {
+            (i.modifiers.command || (i.modifiers.ctrl && !cfg!(target_os = "macos")))
+                && i.key_pressed(Key::Comma)
+        });
+        if is_open_settings {
+            self.settings_modal_open = true;
+            self.settings_tab = SettingsTab::General;
+        }
+
+        // 3. Cmd + W : Close active modal / image viewer / minimize
+        let is_cmd_w = ctx.input(|i| {
+            (i.modifiers.command || (i.modifiers.ctrl && !cfg!(target_os = "macos")))
+                && i.key_pressed(Key::W)
+        });
+        if is_cmd_w {
+            if self.image_viewer.is_some() {
+                self.image_viewer = None;
+            } else if self.settings_modal_open
+                || self.feed_modal_open
+                || self.contacts_view_open
+                || self.schedule_modal_open
+                || self.sticker_picker_open
+                || self.update_modal_open
+                || self.phone_modal_open
+                || self.reactions_dialog.is_some()
+                || self.profile_menu_open
+                || self.info_drawer_open
+            {
+                self.settings_modal_open = false;
+                self.feed_modal_open = false;
+                self.contacts_view_open = false;
+                self.schedule_modal_open = false;
+                self.sticker_picker_open = false;
+                self.update_modal_open = false;
+                self.phone_modal_open = false;
+                self.reactions_dialog = None;
+                self.profile_menu_open = false;
+                self.info_drawer_open = false;
+            } else if self.in_chat_search_open {
+                self.in_chat_search_open = false;
+            } else {
+                #[cfg(target_os = "macos")]
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+            }
+        }
+
+        // 4. Cmd + F : Search inside active chat
+        let is_cmd_f = ctx.input(|i| {
+            (i.modifiers.command || (i.modifiers.ctrl && !cfg!(target_os = "macos")))
+                && !i.modifiers.shift
+                && i.key_pressed(Key::F)
+        });
+        if is_cmd_f && self.selected_thread_index < self.threads.len() {
+            self.in_chat_search_open = true;
+            self.in_chat_search_focus_pending = true;
+        }
+
+        // 5. Cmd + K : Focus global conversation search in sidebar
+        let is_cmd_k = ctx.input(|i| {
+            (i.modifiers.command || (i.modifiers.ctrl && !cfg!(target_os = "macos")))
+                && i.key_pressed(Key::K)
+        });
+        if is_cmd_k {
+            ctx.memory_mut(|m| m.request_focus(Id::new("sidebar_search_input")));
+        }
+
+        // 6. Cmd + 1 .. 9 : Switch to conversation 1 .. 9
+        let num_switched = ctx.input(|i| {
+            let mod_active = i.modifiers.command || (i.modifiers.ctrl && !cfg!(target_os = "macos"));
+            if !mod_active {
+                return None;
+            }
+            if i.key_pressed(Key::Num1) {
+                Some(0)
+            } else if i.key_pressed(Key::Num2) {
+                Some(1)
+            } else if i.key_pressed(Key::Num3) {
+                Some(2)
+            } else if i.key_pressed(Key::Num4) {
+                Some(3)
+            } else if i.key_pressed(Key::Num5) {
+                Some(4)
+            } else if i.key_pressed(Key::Num6) {
+                Some(5)
+            } else if i.key_pressed(Key::Num7) {
+                Some(6)
+            } else if i.key_pressed(Key::Num8) {
+                Some(7)
+            } else if i.key_pressed(Key::Num9) {
+                Some(8)
+            } else {
+                None
+            }
+        });
+        if let Some(target_idx) = num_switched {
+            self.select_thread_by_index(ctx, target_idx);
         }
         if ctx.input(|i| {
             (i.modifiers.ctrl || i.modifiers.command) && i.modifiers.shift && i.key_pressed(Key::P)
