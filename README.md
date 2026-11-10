@@ -1,28 +1,17 @@
-# ctdozlite
+# zaluu
 
 **[Tiếng Việt](README.md)** · **[English](docs/i18n/README_EN.md)** · **[한국어](docs/i18n/README_KO.md)** · **[日本語](docs/i18n/README_JA.md)** · **[简体中文](docs/i18n/README_ZH.md)**
 
+Client Zalo Native hiệu năng cao viết 100% bằng Rust (`eframe`/`egui` + `ratatui`), kết nối trực tiếp với hệ thống API và WebSocket của Zalo mà không qua Electron hay Node.js.
 
-Client Zalo Desktop viết bằng Rust (`eframe`/`egui` + `ratatui`), giao tiếp trực tiếp với hệ thống API và WebSocket của Zalo Web/PC mà không qua Electron hay Chromium.
+- **Mã nguồn (GitHub Repository):** [https://github.com/khanghmt122/zalo-rust](https://github.com/khanghmt122/zalo-rust)
+- **Bản phát hành sẵn sàng sử dụng (Releases):** [https://github.com/khanghmt122/zalo-rust/releases](https://github.com/khanghmt122/zalo-rust/releases)
+- **Tác giả & Duy trì:** Hồ Lưu Bảo Khang ([@khanghmt122](https://github.com/khanghmt122))
 
-- **Trang chủ dự án (Website & Tải nhanh):** [https://ctdozlite.ctdo.net/](https://ctdozlite.ctdo.net/)
-- **Gói cài đặt dựng sẵn (Releases):** [https://github.com/ctdoteam1110/ctdozlite/releases](https://github.com/ctdoteam1110/ctdozlite/releases)
-- **Tính năng nào đang chạy?** [Tính năng & giới hạn](docs/TINH_NANG.md) · [Đã biết](docs/DA_BIET.md) · [Xử lý sự cố](docs/KHAC_PHUC_SU_CO.md)
-
-> Chưa rõ tính năng bạn cần đã hoạt động chưa? Đọc [Tính năng & giới hạn](docs/TINH_NANG.md) **trước khi** mở issue — bảng đó ghi rõ cái gì đang chạy, cái gì chỉ chạy một phần và issue nào đang theo dõi.
-
-
-> [!NOTE]
-> **Tuyên bố miễn trừ trách nhiệm (Disclaimer):** Dự án này là một nghiên cứu kỹ thuật hệ thống độc lập mã nguồn mở vì mục đích học tập, giáo dục và tương thích giao thức (*Educational & Interoperability Research Purposes Only*). Dự án **KHÔNG** có bất kỳ mối liên hệ, hợp tác, tài trợ hay bảo trợ nào từ VNG Corporation hay Zalo, và **hoàn toàn phi thương mại** (100% mã nguồn mở, không thu phí, không quảng cáo, không bán dữ liệu, không có bất kỳ hình thức kiếm tiền nào).
->
-> Để hiểu định dạng gói tin và luồng ký request, nhóm phát triển có thực hiện **phân tích tĩnh** (static analysis) trên gói cài đặt **công khai** của Zalo và các thư viện native đi kèm. Kết quả chỉ dùng để **viết lại độc lập** bằng Rust — **không** sao chép, **không** tái phân phối mã máy, mã nguồn JS/WASM hay tài nguyên đồ hoạ/âm thanh nào của Zalo. Chi tiết và giới hạn đầy đủ ở mục **[Phân tích tĩnh & tài nguyên bên thứ ba](#về-phân-tích-tĩnh--tài-nguyên-bên-thứ-ba)**.
->
-> Người dùng tự chịu mọi trách nhiệm khi sử dụng phần mềm này.
-[![Website](https://img.shields.io/badge/website-ctdozlite.ctdo.net-0068FF.svg)](https://ctdozlite.ctdo.net/)
-[![Release](https://img.shields.io/github/v/release/ctdoteam1110/ctdozlite?label=release)](https://github.com/ctdoteam1110/ctdozlite/releases)
-[![CI & Release](https://github.com/ctdoteam1110/ctdozlite/actions/workflows/ci-release.yml/badge.svg)](https://github.com/ctdoteam1110/ctdozlite/actions/workflows/ci-release.yml)
+[![Release](https://img.shields.io/github/v/release/khanghmt122/zalo-rust?label=release)](https://github.com/khanghmt122/zalo-rust/releases)
+[![CI & Release](https://github.com/khanghmt122/zalo-rust/actions/workflows/ci-release.yml/badge.svg)](https://github.com/khanghmt122/zalo-rust/actions/workflows/ci-release.yml)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://github.com/ctdoteam1110/ctdozlite/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://github.com/khanghmt122/zalo-rust/releases)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 
 ![Giao diện ctdozlite Native trên Windows](docs/assets/demo-windows.png)
@@ -286,8 +275,15 @@ Lịch sử phát hành và ghi chú thay đổi: **[GitHub Releases](https://gi
 
 ---
 
+## 👨‍💻 Tác giả & Phát triển (Author & Lead Maintainer)
 
-## 🏆 Key Contributors
+- **Hồ Lưu Bảo Khang** ([@khanghmt122](https://github.com/khanghmt122))
+  - Email: `khangholuubaoo@gmail.com`
+  - Repository: [https://github.com/khanghmt122/zalo-rust](https://github.com/khanghmt122/zalo-rust)
+
+---
+
+## 🏆 Đóng góp mã nguồn (Contributors)
 
 Dự án ghi nhận các thành viên có đóng góp mã nguồn tiêu biểu trực tiếp vào repository:
 

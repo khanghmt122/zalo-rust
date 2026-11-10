@@ -1707,7 +1707,7 @@ pub(super) fn render_message_body(
             return body_action;
         }
     }
-    // Dedicated File / Video Attachment Card (#74)
+    // Dedicated File / Video / Voice Attachment Card (#74)
     let is_zalo_file_or_video = is_zalo_file_or_video_message(msg);
     if is_zalo_file_or_video {
         let is_vid =
@@ -1718,7 +1718,20 @@ pub(super) fn render_message_body(
             trimmed_text,
             url_str,
         );
-        let title_str = if is_vid {
+        let is_audio = trimmed_text.starts_with("[Tin nhắn thoại]")
+            || resolved_file_name.ends_with(".wav")
+            || resolved_file_name.ends_with(".mp3")
+            || resolved_file_name.ends_with(".m4a")
+            || resolved_file_name.ends_with(".opus");
+
+        let title_str = if is_audio {
+            let clean = if trimmed_text.starts_with("[Tin nhắn thoại") {
+                trimmed_text.to_string()
+            } else {
+                format!("[Tin nhắn thoại] {resolved_file_name}")
+            };
+            format!("▶ {clean}")
+        } else if is_vid {
             msg.link_title
                 .as_deref()
                 .filter(|s| !s.is_empty())
@@ -1727,7 +1740,9 @@ pub(super) fn render_message_body(
         } else {
             resolved_file_name.clone()
         };
-        let sub_str = if is_vid {
+        let sub_str = if is_audio {
+            "Tin nhắn thoại · Bấm để phát âm thanh"
+        } else if is_vid {
             "Video đính kèm · Bấm để mở"
         } else {
             "Tập tin Zalo · Bấm để lưu về máy"
@@ -1749,7 +1764,9 @@ pub(super) fn render_message_body(
                 .sense(Sense::click()),
             )
             .on_hover_cursor(CursorIcon::PointingHand)
-            .on_hover_text(if is_vid {
+            .on_hover_text(if is_audio {
+                "Bấm để phát tin nhắn thoại"
+            } else if is_vid {
                 "Bấm để mở video"
             } else {
                 "Bấm để tải và lưu tập tin với tên gốc"
@@ -1763,7 +1780,12 @@ pub(super) fn render_message_body(
             .on_hover_cursor(CursorIcon::PointingHand);
         if resp.clicked() || dom_resp.clicked() {
             if let Some(url) = msg.link_url.as_deref().filter(|u| !u.is_empty()) {
-                if is_vid && !url.to_ascii_lowercase().contains("/renewmedia") {
+                if is_audio {
+                    return Some(BubbleAction::PlayAudio {
+                        path_or_url: url.to_string(),
+                        file_name: resolved_file_name,
+                    });
+                } else if is_vid && !url.to_ascii_lowercase().contains("/renewmedia") {
                     open_external_url(url);
                 } else {
                     return Some(BubbleAction::DownloadFile {
@@ -2552,6 +2574,10 @@ pub(super) enum BubbleAction {
     },
     DownloadFile {
         url: String,
+        file_name: String,
+    },
+    PlayAudio {
+        path_or_url: String,
         file_name: String,
     },
 }

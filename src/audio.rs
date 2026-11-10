@@ -270,3 +270,33 @@ impl VoiceRecorder {
         Ok((wav_bytes, duration_secs))
     }
 }
+
+/// Play audio file using the system native media player (afplay on macOS, PowerShell SoundPlayer on Windows).
+pub fn play_audio_file(file_path: &std::path::Path) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("afplay")
+            .arg(file_path)
+            .spawn()?;
+        Ok(())
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let path_str = file_path.to_string_lossy().to_string();
+        std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", &format!("(New-Object Media.SoundPlayer '{}').Play()", path_str)])
+            .spawn()?;
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let res = std::process::Command::new("paplay")
+            .arg(file_path)
+            .spawn()
+            .or_else(|_| std::process::Command::new("aplay").arg(file_path).spawn());
+        if res.is_ok() {
+            return Ok(());
+        }
+        anyhow::bail!("Không tìm thấy trình phát âm thanh hệ thống")
+    }
+}

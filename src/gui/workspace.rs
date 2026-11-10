@@ -4294,6 +4294,25 @@ impl ZaloGuiApp {
                                         });
                                     }
                                 }
+                                BubbleAction::PlayAudio { path_or_url, file_name } => {
+                                    let clean_p = path_or_url.strip_prefix("local://").unwrap_or(&path_or_url);
+                                    if std::path::Path::new(clean_p).exists() {
+                                        if let Err(e) = crate::audio::play_audio_file(std::path::Path::new(clean_p)) {
+                                            self.show_toast(format!("⚠️ Lỗi phát âm thanh: {e}"));
+                                        } else {
+                                            self.show_toast("▶ Đang phát tin nhắn thoại…");
+                                        }
+                                    } else {
+                                        self.show_toast(format!("⏳ Đang tải và phát \"{file_name}\"…"));
+                                        if let Some(tx) = WORKER_TX.get() {
+                                            let _ = tx.send(WorkerCmd::DownloadFile {
+                                                url: path_or_url,
+                                                file_name,
+                                                download_dir: self.settings.download_dir.clone(),
+                                            });
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

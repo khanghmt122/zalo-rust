@@ -73,20 +73,20 @@ name = "view_feed"
 path = "src/bin/view_feed.rs"
 
 [package.metadata.deb]
-name = "ctdozlite"
-maintainer = "TIPC1110 <tienichpc1110@gmail.com>"
-copyright = "2026, TIPC1110 <tienichpc1110@gmail.com>"
+name = "zaluu"
+maintainer = "Hồ Lưu Bảo Khang <khangholuubaoo@gmail.com>"
+copyright = "2026, Hồ Lưu Bảo Khang <khangholuubaoo@gmail.com>"
 license-file = ["LICENSE-MIT", "0"]
 depends = "libc6 (>= 2.31), libasound2 | libasound2t64, libx11-6, libxcb1, libxkbcommon0, libgl1"
 recommends = "ffmpeg, zenity, xclip, wl-clipboard, fonts-noto-core"
 section = "net"
 priority = "optional"
 assets = [
-    ["target/release/ctdozlite", "usr/bin/", "755"],
-    ["packaging/linux/ctdozlite", "usr/bin/", "755"],
-    ["packaging/linux/ctdozlite.desktop", "usr/share/applications/", "644"],
-    ["src/assets/app_icon.png", "usr/share/icons/hicolor/256x256/apps/ctdozlite.png", "644"],
-    ["README.md", "usr/share/doc/ctdozlite/README.md", "644"],
+    ["target/release/zaluu", "usr/bin/", "755"],
+    ["packaging/linux/install.sh", "usr/bin/", "755"],
+    ["packaging/linux/zaluu.desktop", "usr/share/applications/", "644"],
+    ["src/assets/app_icon.png", "usr/share/icons/hicolor/256x256/apps/zaluu.png", "644"],
+    ["README.md", "usr/share/doc/zaluu/README.md", "644"],
 ]
 
 [profile.release]
