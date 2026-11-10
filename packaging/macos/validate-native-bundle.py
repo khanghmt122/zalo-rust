@@ -23,7 +23,7 @@ def output(*args):
 
 def validate(app, arches):
     contents = app / "Contents"
-    required = [contents / "MacOS/ctdozlite"] + [contents / path for path in HELPERS.values()]
+    required = [contents / "MacOS/zaluu"] + [contents / path for path in HELPERS.values()]
     for binary in required:
         assert binary.is_file() and binary.stat().st_mode & 0o111, f"Missing executable: {binary}"
     assert not (contents / "Resources/HistoryCodecAssets").exists(), "Public bundle contains external codec assets"

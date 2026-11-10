@@ -487,7 +487,7 @@ pub fn parse_github_release_value(
         .and_then(|v| v.as_str())
         .filter(|s| !s.trim().is_empty())
         .map(str::to_string)
-        .unwrap_or_else(|| format!("ctdozlite v{latest_ver}"));
+        .unwrap_or_else(|| format!("zaluu v{latest_ver}"));
 
     let release_notes = rel
         .get("body")

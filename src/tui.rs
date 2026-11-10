@@ -1627,7 +1627,7 @@ fn ui_draw(f: &mut Frame, app: &mut TuiApp<'_>) {
     let total_unread: usize = app.unread.values().sum();
     let mut header_spans = vec![
         Span::styled(
-            " ctdozlite ",
+            " Zaluu ",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),

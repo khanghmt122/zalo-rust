@@ -186,7 +186,7 @@ fn asset_names_reject_cross_platform_traversal() {
     ] {
         assert!(validate_asset_name(name).is_err(), "accepted {name:?}");
     }
-    validate_asset_name("ctdozlite-1.2.3-arm64.dmg").unwrap();
+    validate_asset_name("zaluu-1.2.3-arm64.dmg").unwrap();
 }
 
 #[test]

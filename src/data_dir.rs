@@ -224,7 +224,7 @@ mod tests {
 
     fn fixture() -> PathBuf {
         let path = std::env::temp_dir().join(format!(
-            "ctdozlite-storage-test-{}-{}",
+            "zaluu-storage-test-{}-{}",
             std::process::id(),
             NEXT_FILE.fetch_add(1, Ordering::Relaxed)
         ));
@@ -235,16 +235,16 @@ mod tests {
     #[test]
     fn resolves_bundle_cli_and_explicit_paths() {
         let cwd = Path::new("/work");
-        let exe = Path::new("/Applications/Zalo.app/Contents/MacOS/ctdozlite");
+        let exe = Path::new("/Applications/Zalo.app/Contents/MacOS/zaluu");
         assert_eq!(
             resolve(&[], cwd, exe, Some(Path::new("/Users/fixture")), true).unwrap(),
             (
-                PathBuf::from("/Users/fixture/Library/Application Support/ctdozlite"),
+                PathBuf::from("/Users/fixture/Library/Application Support/zaluu"),
                 true
             )
         );
         assert_eq!(
-            resolve(&[], cwd, Path::new("/bin/ctdozlite"), None, true).unwrap(),
+            resolve(&[], cwd, Path::new("/bin/zaluu"), None, true).unwrap(),
             (cwd.to_path_buf(), false)
         );
         assert_eq!(
@@ -277,7 +277,7 @@ mod tests {
             resolve(
                 &["--profile".into(), "acc_2".into()],
                 cwd,
-                Path::new("/bin/ctdozlite"),
+                Path::new("/bin/zaluu"),
                 None,
                 true
             )
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn explicit_path_overrides_bundle_and_relative_home_is_rejected() {
         let cwd = Path::new("/work");
-        let exe = Path::new("/Applications/Fixture.app/Contents/MacOS/ctdozlite");
+        let exe = Path::new("/Applications/Fixture.app/Contents/MacOS/zaluu");
         assert_eq!(
             resolve(&["--data-dir=/fixture-data".into()], cwd, exe, None, true).unwrap(),
             (PathBuf::from("/fixture-data"), true)
@@ -322,7 +322,7 @@ mod tests {
             resolve(
                 &[],
                 cwd,
-                Path::new("/Fixture.app/Contents/MacOS-extra/ctdozlite"),
+                Path::new("/Fixture.app/Contents/MacOS-extra/zaluu"),
                 None,
                 true
             )
@@ -361,7 +361,7 @@ mod tests {
     #[test]
     fn spaced_storage_option_rejects_flags_but_explicit_dash_paths_are_valid() {
         let cwd = Path::new("/work");
-        let exe = Path::new("/bin/ctdozlite");
+        let exe = Path::new("/bin/zaluu");
         for flag in ["-d", "-v", "-V", "--logout"] {
             assert!(
                 resolve(&["--data-dir".into(), flag.into()], cwd, exe, None, true).is_err(),

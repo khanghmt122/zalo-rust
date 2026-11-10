@@ -5,17 +5,17 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>vi</string>
     <key>CFBundleDisplayName</key>
-    <string>ctdozlite</string>
+    <string>Zaluu</string>
     <key>CFBundleExecutable</key>
-    <string>ctdozlite</string>
+    <string>zaluu</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.ctdoteam1110.ctdozlite</string>
+    <string>com.khanghmt122.zaluu</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>ctdozlite</string>
+    <string>Zaluu</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <!-- Sentinel default: CI overwrites this from Cargo.toml before packaging:
@@ -29,8 +29,8 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>ctdozlite cần quyền truy cập Microphone để thực hiện cuộc gọi thoại và video Zalo.</string>
+    <string>Zaluu cần quyền truy cập Microphone để thực hiện cuộc gọi thoại và video Zalo.</string>
     <key>NSCameraUsageDescription</key>
-    <string>ctdozlite cần quyền truy cập Camera để thực hiện cuộc gọi video Zalo.</string>
+    <string>Zaluu cần quyền truy cập Camera để thực hiện cuộc gọi video Zalo.</string>
 </dict>
 </plist>

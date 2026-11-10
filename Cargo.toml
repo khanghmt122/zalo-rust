@@ -1,6 +1,6 @@
 [package]
 name = "zaluu"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Hồ Lưu Bảo Khang <khangholuubaoo@gmail.com>"]
 description = "Lightweight, high-performance native Zalo PC client written in Rust (zero Node.js, zero Electron)"

@@ -23,9 +23,9 @@ class NativePackagingTests(unittest.TestCase):
         self.assertIn("HistoryCodec", script)
         workflow = (ROOT / ".github/workflows/ci-release.yml").read_text()
         self.assertIn('env -u HISTORY_CODEC_ASSETS SWIFT_TARGETS=', workflow)
-        self.assertIn('Contents/MacOS/ctdozlite', workflow)
-        self.assertNotIn('zalo-rust', workflow)
-        self.assertLess(workflow.index("validate-native-bundle.py"), workflow.index('codesign --force --sign - "$stage_dir/ctdozlite.app/Contents/Helpers/DailyNotifier.app"'))
+        self.assertIn('Contents/MacOS/zaluu', workflow)
+        self.assertNotIn('ctdozlite', workflow)
+        self.assertLess(workflow.index("validate-native-bundle.py"), workflow.index('codesign --force --sign - "$stage_dir/Zaluu.app/Contents/Helpers/DailyNotifier.app"'))
 
     def test_asset_download_requires_explicit_local_use(self):
         result = subprocess.run(["python3", str(ROOT / "native/macos/prepare-history-assets.py")], capture_output=True, text=True)
@@ -38,7 +38,7 @@ class NativePackagingTests(unittest.TestCase):
                 app = Path(temporary) / "Synthetic.app"
                 paths = dict(validator.HELPERS)
                 # A helper stands in for the main executable for packaging validation only.
-                paths["MainFixture"] = "MacOS/ctdozlite"
+                paths["MainFixture"] = "MacOS/zaluu"
                 for name, path in paths.items():
                     binary = BUILD / ("EmojiPreview" if name == "MainFixture" else name)
                     destination = app / "Contents" / path

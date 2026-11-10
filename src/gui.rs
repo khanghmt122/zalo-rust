@@ -299,7 +299,7 @@ pub fn is_newer_semver(remote: &str, current: &str) -> bool {
     crate::updater::is_newer_semver(remote, current)
 }
 
-/// Query GitHub Releases API (`/repos/ctdoteam1110/ctdozlite/releases/latest`) for updates.
+/// Query GitHub Releases API (`/repos/khanghmt122/zalo-rust/releases/latest`) for updates.
 pub async fn check_github_release_cli() -> Result<UpdateCheckResult, String> {
     worker::fetch_github_latest_release().await
 }
@@ -3198,7 +3198,7 @@ impl ZaloGuiApp {
 
                     ui.add_space(6.0);
                     ui.label(
-                        RichText::new("zaluu")
+                        RichText::new("Zaluu")
                             .color(pal.text_primary)
                             .size(13.5)
                             .strong(),

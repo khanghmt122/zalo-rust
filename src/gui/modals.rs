@@ -582,7 +582,7 @@ impl ZaloGuiApp {
                 let corner_pos = get_desktop_bottom_right_pos(ctx, popup_w, popup_h);
                 let vp_id = egui::ViewportId::from_hash_of("zalo_corner_notification_popup");
                 let builder = egui::ViewportBuilder::default()
-                    .with_title("ctdozlite — Tin nhắn mới")
+                    .with_title("Zaluu — Tin nhắn mới")
                     .with_decorations(false)
                     .with_always_on_top()
                     .with_taskbar(false)
@@ -653,7 +653,7 @@ impl ZaloGuiApp {
                                     ui.painter().circle_filled(dr.center(), 4.0, pal.primary);
                                 }
                                 ui.label(
-                                    RichText::new("ctdozlite · Tin nhắn mới")
+                                    RichText::new("Zaluu · Tin nhắn mới")
                                         .size(11.5)
                                         .color(pal.primary)
                                         .strong(),
@@ -2284,7 +2284,7 @@ impl ZaloGuiApp {
                                                             .on_hover_cursor(CursorIcon::PointingHand)
                                                             .clicked()
                                                         {
-                                                            open_external_url("https://github.com/ctdoteam1110/ctdozlite/blob/main/docs/TINH_NANG.md");
+                                                            open_external_url("https://github.com/khanghmt122/zalo-rust/blob/main/docs/TINH_NANG.md");
                                                         }
                                                         ui.add_space(4.0);
                                                         let total_msgs: usize = self.threads.iter().map(|t| t.messages.len()).sum();
@@ -4172,7 +4172,7 @@ impl ZaloGuiApp {
                                 ui.add(
                                     egui::Label::new(
                                         RichText::new(
-                                            "⚠ Lưu ý: Hiện tại ứng dụng không sử dụng máy chủ trung gian, nên chức năng hẹn giờ gửi tin nhắn chỉ khả dụng khi đang chạy ctdozlite.",
+                                            "⚠ Lưu ý: Hiện tại ứng dụng không sử dụng máy chủ trung gian, nên chức năng hẹn giờ gửi tin nhắn chỉ khả dụng khi đang chạy Zaluu.",
                                         )
                                         .size(12.5)
                                         .color(warn_fg)
