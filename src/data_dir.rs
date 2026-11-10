@@ -89,7 +89,20 @@ pub fn resolve(
         if !home.is_absolute() && !home.to_str().is_some_and(|s| s.starts_with('/')) {
             bail!("HOME phải là đường dẫn tuyệt đối");
         }
-        (home.join("Library/Application Support/ctdozlite"), true)
+        let zaluu_dir = home.join("Library/Application Support/zaluu");
+        let legacy_dir = home.join("Library/Application Support/ctdozlite");
+        #[cfg(unix)]
+        if !zaluu_dir.exists() && legacy_dir.exists() {
+            let _ = std::os::unix::fs::symlink(&legacy_dir, &zaluu_dir);
+        }
+        let target = if zaluu_dir.exists() {
+            zaluu_dir
+        } else if legacy_dir.exists() {
+            legacy_dir
+        } else {
+            home.join("Library/Application Support/zaluu")
+        };
+        (target, true)
     } else {
         (cwd.to_path_buf(), false)
     };

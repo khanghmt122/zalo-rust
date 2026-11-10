@@ -933,42 +933,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ctdozlite"
-version = "0.1.0"
-dependencies = [
- "aes",
- "aes-gcm",
- "anyhow",
- "base64 0.22.1",
- "cbc",
- "chrono",
- "cipher",
- "cpal",
- "crossterm",
- "eframe",
- "flate2",
- "futures-util",
- "generic-array",
- "getrandom 0.3.4",
- "image",
- "lzma-rs",
- "md-5",
- "opus",
- "qrcode",
- "ratatui",
- "reqwest",
- "rsa",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tokio-tungstenite",
- "wasmtime",
- "zstd",
-]
-
-[[package]]
 name = "ctr"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5176,6 +5140,42 @@ dependencies = [
  "quote",
  "syn 3.0.9",
  "synstructure",
+]
+
+[[package]]
+name = "zaluu"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "aes-gcm",
+ "anyhow",
+ "base64 0.22.1",
+ "cbc",
+ "chrono",
+ "cipher",
+ "cpal",
+ "crossterm",
+ "eframe",
+ "flate2",
+ "futures-util",
+ "generic-array",
+ "getrandom 0.3.4",
+ "image",
+ "lzma-rs",
+ "md-5",
+ "opus",
+ "qrcode",
+ "ratatui",
+ "reqwest",
+ "rsa",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-tungstenite",
+ "wasmtime",
+ "zstd",
 ]
 
 [[package]]

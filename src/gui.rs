@@ -1304,9 +1304,9 @@ impl ZaloGuiApp {
                             }
                             let total_unread: usize = self.unread_counts.values().sum();
                             let title = if total_unread > 0 {
-                                format!("({total_unread}) ctdozlite")
+                                format!("({total_unread}) zaluu")
                             } else {
-                                "ctdozlite".to_string()
+                                "zaluu".to_string()
                             };
                             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
                             if !is_focused {
@@ -2645,6 +2645,76 @@ impl ZaloGuiApp {
                 let mut buttons_left_x = bar_rect.right();
 
                 ui.horizontal_centered(|ui| {
+                    #[cfg(target_os = "macos")]
+                    {
+                        // macOS Native Traffic Lights on the left
+                        let (traffic_rect, _) = ui.allocate_exact_size(Vec2::new(58.0, 32.0), Sense::hover());
+                        let is_group_hovered = ui.rect_contains_pointer(traffic_rect);
+                        let cy = traffic_rect.center().y;
+                        let r = 5.75_f32; // Standard macOS traffic light radius
+
+                        // Red: Close
+                        let red_center = Pos2::new(traffic_rect.left() + 6.0 + r, cy);
+                        let red_rect = Rect::from_center_size(red_center, Vec2::splat(r * 2.0));
+                        let red_resp = ui.interact(red_rect, ui.id().with("mac_close"), Sense::click());
+                        ui.painter().circle_filled(red_center, r, Color32::from_rgb(255, 95, 86));
+                        ui.painter().circle_stroke(red_center, r, Stroke::new(0.75_f32, Color32::from_rgb(224, 68, 62)));
+                        if is_group_hovered {
+                            let d = 2.4_f32;
+                            ui.painter().line_segment(
+                                [Pos2::new(red_center.x - d, red_center.y - d), Pos2::new(red_center.x + d, red_center.y + d)],
+                                Stroke::new(1.15_f32, Color32::from_rgba_unmultiplied(80, 0, 0, 210)),
+                            );
+                            ui.painter().line_segment(
+                                [Pos2::new(red_center.x + d, red_center.y - d), Pos2::new(red_center.x - d, red_center.y + d)],
+                                Stroke::new(1.15_f32, Color32::from_rgba_unmultiplied(80, 0, 0, 210)),
+                            );
+                        }
+                        if red_resp.on_hover_text("Đóng (Cmd+Q)").clicked() {
+                            self.allow_quit = true;
+                            if let Some(tx) = WORKER_TX.get() {
+                                let _ = tx.send(WorkerCmd::EndCall);
+                            }
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                            std::process::exit(0);
+                        }
+
+                        // Yellow: Minimize
+                        let yellow_center = Pos2::new(red_center.x + 19.0, cy);
+                        let yellow_rect = Rect::from_center_size(yellow_center, Vec2::splat(r * 2.0));
+                        let yellow_resp = ui.interact(yellow_rect, ui.id().with("mac_min"), Sense::click());
+                        ui.painter().circle_filled(yellow_center, r, Color32::from_rgb(255, 189, 46));
+                        ui.painter().circle_stroke(yellow_center, r, Stroke::new(0.75_f32, Color32::from_rgb(222, 161, 35)));
+                        if is_group_hovered {
+                            ui.painter().line_segment(
+                                [Pos2::new(yellow_center.x - 3.2, yellow_center.y), Pos2::new(yellow_center.x + 3.2, yellow_center.y)],
+                                Stroke::new(1.2_f32, Color32::from_rgba_unmultiplied(120, 60, 0, 220)),
+                            );
+                        }
+                        if yellow_resp.on_hover_text("Thu nhỏ").clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                        }
+
+                        // Green: Maximize / Zoom
+                        let green_center = Pos2::new(yellow_center.x + 19.0, cy);
+                        let green_rect = Rect::from_center_size(green_center, Vec2::splat(r * 2.0));
+                        let green_resp = ui.interact(green_rect, ui.id().with("mac_max"), Sense::click());
+                        ui.painter().circle_filled(green_center, r, Color32::from_rgb(39, 201, 63));
+                        ui.painter().circle_stroke(green_center, r, Stroke::new(0.75_f32, Color32::from_rgb(39, 174, 56)));
+                        if is_group_hovered {
+                            let gd = 2.2_f32;
+                            ui.painter().line_segment(
+                                [Pos2::new(green_center.x - gd, green_center.y + gd), Pos2::new(green_center.x + gd, green_center.y - gd)],
+                                Stroke::new(1.1_f32, Color32::from_rgba_unmultiplied(0, 80, 0, 220)),
+                            );
+                        }
+                        if green_resp.on_hover_text(if is_maximized { "Khôi phục" } else { "Phóng to" }).clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                        }
+
+                        ui.add_space(8.0);
+                    }
+
                     // 1. App Logo (20x20)
                     let (logo_rect, _) =
                         ui.allocate_exact_size(Vec2::new(20.0, 20.0), Sense::hover());
@@ -2662,7 +2732,7 @@ impl ZaloGuiApp {
 
                     ui.add_space(6.0);
                     ui.label(
-                        RichText::new("ctdozlite")
+                        RichText::new("zaluu")
                             .color(pal.text_primary)
                             .size(13.5)
                             .strong(),
@@ -2709,111 +2779,114 @@ impl ZaloGuiApp {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
 
-                        // Close Button (46x32)
-                        let (close_rect, close_resp) =
-                            ui.allocate_exact_size(Vec2::new(46.0, 32.0), Sense::click());
-                        if close_resp.hovered() {
-                            ui.painter().rect_filled(
-                                close_rect,
-                                Rounding::ZERO,
-                                Color32::from_rgb(232, 17, 35),
-                            );
-                        }
-                        let close_fg = if close_resp.hovered() {
-                            Color32::WHITE
-                        } else {
-                            pal.text_secondary
-                        };
-                        let cc = close_rect.center();
-                        let d = 4.6_f32;
-                        ui.painter().line_segment(
-                            [Pos2::new(cc.x - d, cc.y - d), Pos2::new(cc.x + d, cc.y + d)],
-                            Stroke::new(1.4_f32, close_fg),
-                        );
-                        ui.painter().line_segment(
-                            [Pos2::new(cc.x + d, cc.y - d), Pos2::new(cc.x - d, cc.y + d)],
-                            Stroke::new(1.4_f32, close_fg),
-                        );
-                        let close_resp = close_resp.on_hover_text("Đóng ứng dụng (Ctrl+Q)");
-                        if close_resp.clicked() || close_resp.secondary_clicked() {
-                            self.allow_quit = true;
-                            if let Some(tx) = WORKER_TX.get() {
-                                let _ = tx.send(WorkerCmd::EndCall);
-                            }
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                            std::process::exit(0);
-                        }
-
-                        // Maximize / Restore Button (46x32)
-                        let (max_rect, max_resp) =
-                            ui.allocate_exact_size(Vec2::new(46.0, 32.0), Sense::click());
-                        if max_resp.hovered() {
-                            ui.painter()
-                                .rect_filled(max_rect, Rounding::ZERO, pal.bg_hover);
-                        }
-                        let max_fg = if max_resp.hovered() {
-                            pal.text_primary
-                        } else {
-                            pal.text_secondary
-                        };
-                        let mc = max_rect.center();
-                        if is_maximized {
-                            let back = Rect::from_center_size(
-                                Pos2::new(mc.x + 1.2, mc.y - 1.2),
-                                Vec2::splat(7.8),
-                            );
-                            let front = Rect::from_center_size(
-                                Pos2::new(mc.x - 1.2, mc.y + 1.2),
-                                Vec2::splat(7.8),
-                            );
-                            ui.painter()
-                                .rect_stroke(back, Rounding::same(1.0), Stroke::new(1.25_f32, max_fg));
-                            ui.painter().rect_filled(
-                                front,
-                                Rounding::same(1.0),
-                                if max_resp.hovered() {
-                                    pal.bg_hover
-                                } else {
-                                    pal.bg_app
-                                },
-                            );
-                            ui.painter()
-                                .rect_stroke(front, Rounding::same(1.0), Stroke::new(1.25_f32, max_fg));
-                        } else {
-                            let sq = Rect::from_center_size(mc, Vec2::splat(9.5));
-                            ui.painter()
-                                .rect_stroke(sq, Rounding::same(1.2), Stroke::new(1.3_f32, max_fg));
-                        }
-                        if max_resp
-                            .on_hover_text(if is_maximized {
-                                "Khôi phục kích thước"
-                            } else {
-                                "Phóng to toàn màn hình"
-                            })
-                            .clicked()
+                        #[cfg(not(target_os = "macos"))]
                         {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
-                        }
+                            // Close Button (46x32)
+                            let (close_rect, close_resp) =
+                                ui.allocate_exact_size(Vec2::new(46.0, 32.0), Sense::click());
+                            if close_resp.hovered() {
+                                ui.painter().rect_filled(
+                                    close_rect,
+                                    Rounding::ZERO,
+                                    Color32::from_rgb(232, 17, 35),
+                                );
+                            }
+                            let close_fg = if close_resp.hovered() {
+                                Color32::WHITE
+                            } else {
+                                pal.text_secondary
+                            };
+                            let cc = close_rect.center();
+                            let d = 4.6_f32;
+                            ui.painter().line_segment(
+                                [Pos2::new(cc.x - d, cc.y - d), Pos2::new(cc.x + d, cc.y + d)],
+                                Stroke::new(1.4_f32, close_fg),
+                            );
+                            ui.painter().line_segment(
+                                [Pos2::new(cc.x + d, cc.y - d), Pos2::new(cc.x - d, cc.y + d)],
+                                Stroke::new(1.4_f32, close_fg),
+                            );
+                            let close_resp = close_resp.on_hover_text("Đóng ứng dụng (Ctrl+Q)");
+                            if close_resp.clicked() || close_resp.secondary_clicked() {
+                                self.allow_quit = true;
+                                if let Some(tx) = WORKER_TX.get() {
+                                    let _ = tx.send(WorkerCmd::EndCall);
+                                }
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                std::process::exit(0);
+                            }
 
-                        // Minimize Button (46x32)
-                        let (min_rect, min_resp) =
-                            ui.allocate_exact_size(Vec2::new(46.0, 32.0), Sense::click());
-                        if min_resp.hovered() {
-                            ui.painter()
-                                .rect_filled(min_rect, Rounding::ZERO, pal.bg_hover);
-                        }
-                        let min_fg = if min_resp.hovered() {
-                            pal.text_primary
-                        } else {
-                            pal.text_secondary
-                        };
-                        let mnc = min_rect.center();
-                        ui.painter().line_segment(
-                            [Pos2::new(mnc.x - 5.0, mnc.y), Pos2::new(mnc.x + 5.0, mnc.y)],
-                            Stroke::new(1.4_f32, min_fg),
-                        );
-                        if min_resp.on_hover_text("Thu nhỏ").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                            // Maximize / Restore Button (46x32)
+                            let (max_rect, max_resp) =
+                                ui.allocate_exact_size(Vec2::new(46.0, 32.0), Sense::click());
+                            if max_resp.hovered() {
+                                ui.painter()
+                                    .rect_filled(max_rect, Rounding::ZERO, pal.bg_hover);
+                            }
+                            let max_fg = if max_resp.hovered() {
+                                pal.text_primary
+                            } else {
+                                pal.text_secondary
+                            };
+                            let mc = max_rect.center();
+                            if is_maximized {
+                                let back = Rect::from_center_size(
+                                    Pos2::new(mc.x + 1.2, mc.y - 1.2),
+                                    Vec2::splat(7.8),
+                                );
+                                let front = Rect::from_center_size(
+                                    Pos2::new(mc.x - 1.2, mc.y + 1.2),
+                                    Vec2::splat(7.8),
+                                );
+                                ui.painter()
+                                    .rect_stroke(back, Rounding::same(1.0), Stroke::new(1.25_f32, max_fg));
+                                ui.painter().rect_filled(
+                                    front,
+                                    Rounding::same(1.0),
+                                    if max_resp.hovered() {
+                                        pal.bg_hover
+                                    } else {
+                                        pal.bg_app
+                                    },
+                                );
+                                ui.painter()
+                                    .rect_stroke(front, Rounding::same(1.0), Stroke::new(1.25_f32, max_fg));
+                            } else {
+                                let sq = Rect::from_center_size(mc, Vec2::splat(9.5));
+                                ui.painter()
+                                    .rect_stroke(sq, Rounding::same(1.2), Stroke::new(1.3_f32, max_fg));
+                            }
+                            if max_resp
+                                .on_hover_text(if is_maximized {
+                                    "Khôi phục kích thước"
+                                } else {
+                                    "Phóng to toàn màn hình"
+                                })
+                                .clicked()
+                            {
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                            }
+
+                            // Minimize Button (46x32)
+                            let (min_rect, min_resp) =
+                                ui.allocate_exact_size(Vec2::new(46.0, 32.0), Sense::click());
+                            if min_resp.hovered() {
+                                ui.painter()
+                                    .rect_filled(min_rect, Rounding::ZERO, pal.bg_hover);
+                            }
+                            let min_fg = if min_resp.hovered() {
+                                pal.text_primary
+                            } else {
+                                pal.text_secondary
+                            };
+                            let mnc = min_rect.center();
+                            ui.painter().line_segment(
+                                [Pos2::new(mnc.x - 5.0, mnc.y), Pos2::new(mnc.x + 5.0, mnc.y)],
+                                Stroke::new(1.4_f32, min_fg),
+                            );
+                            if min_resp.on_hover_text("Thu nhỏ").clicked() {
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                            }
                         }
 
                         // Quick Theme Toggle (36x32)

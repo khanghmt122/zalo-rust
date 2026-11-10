@@ -1,12 +1,12 @@
 [package]
-name = "ctdozlite"
+name = "zaluu"
 version = "0.1.0"
 edition = "2021"
 authors = ["Hồ Lưu Bảo Khang <khangholuubaoo@gmail.com>"]
 description = "Lightweight, high-performance native Zalo PC client written in Rust (zero Node.js, zero Electron)"
 repository = "https://github.com/khanghmt122/zalo-rust"
 license = "MIT OR Apache-2.0"
-default-run = "ctdozlite"
+default-run = "zaluu"
 
 [dependencies]
 aes = "0.8"
@@ -45,7 +45,7 @@ name = "zalo_rust"
 path = "src/lib.rs"
 
 [[bin]]
-name = "ctdozlite"
+name = "zaluu"
 path = "src/main.rs"
 
 [[bin]]

@@ -560,13 +560,13 @@ pub fn parse_github_release_value(
     // Legacy single-asset `latest.json` fallback when `assets` array is absent
     if best_url.is_none() && rel.get("assets").is_none() {
         let fallback_name = match target_os {
-            "windows" => format!("ctdozlite-{latest_ver}-portable-windows-x86_64.exe"),
+            "windows" => format!("zaluu-{latest_ver}-portable-windows-x86_64.exe"),
             "macos" => match target_arch {
-                "aarch64" => format!("ctdozlite-{latest_ver}-macos-arm64.dmg"),
-                "x86_64" => format!("ctdozlite-{latest_ver}-macos-x86_64.dmg"),
-                _ => format!("ctdozlite-{latest_ver}-macos.dmg"),
+                "aarch64" => format!("zaluu-{latest_ver}-macos-arm64.dmg"),
+                "x86_64" => format!("zaluu-{latest_ver}-macos-x86_64.dmg"),
+                _ => format!("zaluu-{latest_ver}-macos.dmg"),
             },
-            _ => format!("ctdozlite-{latest_ver}-x86_64.AppImage"),
+            _ => format!("zaluu-{latest_ver}-x86_64.AppImage"),
         };
         best_url = Some(format!(
             "https://github.com/{repo_slug}/releases/download/v{latest_ver}/{fallback_name}"
@@ -597,7 +597,7 @@ pub fn parse_github_release_value(
 
 /// Dispatch a non-blocking native OS desktop notification announcing a new GitHub release.
 pub fn notify_os_new_update(latest_version: &str, current_version: &str, release_title: &str) {
-    let title = format!("ctdozlite — Có bản cập nhật mới v{latest_version}");
+    let title = format!("zaluu — Có bản cập nhật mới v{latest_version}");
     let body = if release_title.trim().is_empty() {
         format!("Phiên bản mới v{latest_version} đã sẵn sàng trên GitHub (hiện tại: v{current_version}). Mở ứng dụng để cập nhật tự động.")
     } else {
@@ -624,7 +624,7 @@ pub fn notify_os_new_update(latest_version: &str, current_version: &str, release
         let _ = std::process::Command::new("notify-send")
             .args([
                 "-a",
-                "ctdozlite",
+                "zaluu",
                 "-i",
                 "software-update-available",
                 &title,

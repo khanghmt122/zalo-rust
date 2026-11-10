@@ -3,8 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-APP_NAME="Zalo Rust"
-APP_BUNDLE="$PROJECT_DIR/${APP_NAME}.app"
+APP_NAME="Zaluu"
+TMP_DIR="$(mktemp -d)"
+APP_BUNDLE="$TMP_DIR/${APP_NAME}.app"
 APPLICATIONS_BUNDLE="/Applications/${APP_NAME}.app"
 
 echo "=== Tạo macOS App Bundle: ${APP_NAME}.app ==="
@@ -15,18 +16,22 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 
 # 2. Copy binary (ưu tiên release, fallback sang debug)
-if [[ -f "$PROJECT_DIR/target/release/ctdozlite" ]]; then
-    echo "Sử dụng binary Release tối ưu..."
-    cp "$PROJECT_DIR/target/release/ctdozlite" "$APP_BUNDLE/Contents/MacOS/ctdozlite"
-    strip "$APP_BUNDLE/Contents/MacOS/ctdozlite" || true
-elif [[ -f "$PROJECT_DIR/target/debug/ctdozlite" ]]; then
-    echo "Sử dụng binary Debug..."
-    cp "$PROJECT_DIR/target/debug/ctdozlite" "$APP_BUNDLE/Contents/MacOS/ctdozlite"
+if [[ -f "$PROJECT_DIR/target/release/zaluu" ]]; then
+    echo "Sử dụng binary Release tối ưu (zaluu)..."
+    cp "$PROJECT_DIR/target/release/zaluu" "$APP_BUNDLE/Contents/MacOS/zaluu"
+    strip "$APP_BUNDLE/Contents/MacOS/zaluu" || true
+elif [[ -f "$PROJECT_DIR/target/release/ctdozlite" ]]; then
+    echo "Sử dụng binary Release ctdozlite..."
+    cp "$PROJECT_DIR/target/release/ctdozlite" "$APP_BUNDLE/Contents/MacOS/zaluu"
+    strip "$APP_BUNDLE/Contents/MacOS/zaluu" || true
+elif [[ -f "$PROJECT_DIR/target/debug/zaluu" ]]; then
+    echo "Sử dụng binary Debug (zaluu)..."
+    cp "$PROJECT_DIR/target/debug/zaluu" "$APP_BUNDLE/Contents/MacOS/zaluu"
 else
-    echo "Lỗi: Không tìm thấy binary ctdozlite!" >&2
+    echo "Lỗi: Không tìm thấy binary zaluu!" >&2
     exit 1
 fi
-chmod +x "$APP_BUNDLE/Contents/MacOS/ctdozlite"
+chmod +x "$APP_BUNDLE/Contents/MacOS/zaluu"
 
 # 2b. Copy assets/WASM cho Sync v2 & zproto
 if [[ -d "$PROJECT_DIR/scripts/assets" ]]; then
@@ -56,19 +61,19 @@ cat << 'EOF' > "$APP_BUNDLE/Contents/Info.plist"
     <key>CFBundleDevelopmentRegion</key>
     <string>vi</string>
     <key>CFBundleDisplayName</key>
-    <string>Zalo Rust</string>
+    <string>Zaluu</string>
     <key>CFBundleExecutable</key>
-    <string>ctdozlite</string>
+    <string>zaluu</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.ctdoteam1110.ctdozlite</string>
+    <string>com.khanghmt.zaluu</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Zalo Rust</string>
+    <string>Zaluu</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -80,9 +85,9 @@ cat << 'EOF' > "$APP_BUNDLE/Contents/Info.plist"
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Zalo Rust cần quyền Microphone cho cuộc gọi Zalo.</string>
+    <string>Zaluu cần quyền Microphone cho cuộc gọi Zalo.</string>
     <key>NSCameraUsageDescription</key>
-    <string>Zalo Rust cần quyền Camera cho cuộc gọi video Zalo.</string>
+    <string>Zaluu cần quyền Camera cho cuộc gọi video Zalo.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>
@@ -95,29 +100,19 @@ printf 'APPL????' > "$APP_BUNDLE/Contents/PkgInfo"
 xattr -cr "$APP_BUNDLE" || true
 codesign --force --deep --sign - "$APP_BUNDLE"
 
-# 6. Đồng bộ dữ liệu phiên hiện tại vào ~/Library/Application Support/ctdozlite
-# Giúp người dùng khi click app từ Dock sẽ vào thẳng tài khoản đã đăng nhập mà không cần quét lại QR!
-DATA_DIR="$HOME/Library/Application Support/ctdozlite"
-mkdir -p "$DATA_DIR"
-if [[ -f "$PROJECT_DIR/session.json" ]]; then
-    cp "$PROJECT_DIR/session.json" "$DATA_DIR/session.json"
-fi
-if [[ -f "$PROJECT_DIR/threads_cache.json" ]]; then
-    cp "$PROJECT_DIR/threads_cache.json" "$DATA_DIR/threads_cache.json"
-fi
-if [[ -f "$PROJECT_DIR/zalo_history.db" ]]; then
-    cp "$PROJECT_DIR/zalo_history.db" "$DATA_DIR/zalo_history.db"
-fi
-if [[ -f "$PROJECT_DIR/app_settings.json" ]]; then
-    cp "$PROJECT_DIR/app_settings.json" "$DATA_DIR/app_settings.json"
-fi
-if [[ -d "$PROJECT_DIR/stickers_cache" ]]; then
-    cp -R "$PROJECT_DIR/stickers_cache" "$DATA_DIR/"
+# 6. Đảm bảo dữ liệu phiên được liên kết ~/Library/Application Support/zaluu -> ctdozlite
+DATA_DIR="$HOME/Library/Application Support/zaluu"
+LEGACY_DIR="$HOME/Library/Application Support/ctdozlite"
+if [[ -d "$LEGACY_DIR" && ! -d "$DATA_DIR" ]]; then
+    ln -s "$LEGACY_DIR" "$DATA_DIR" || cp -R "$LEGACY_DIR" "$DATA_DIR"
 fi
 
 # 7. Cài đặt vào /Applications
 echo "Cài đặt vào /Applications..."
 rm -rf "$APPLICATIONS_BUNDLE"
 cp -R "$APP_BUNDLE" "$APPLICATIONS_BUNDLE"
+rm -rf "$TMP_DIR"
+# Xóa app bundle cũ Zalo Rust.app nếu có
+rm -rf "/Applications/Zalo Rust.app" "$PROJECT_DIR/Zalo Rust.app" "$PROJECT_DIR/Zaluu.app"
 
-echo "=== Hoàn thành tạo $APPLICATIONS_BUNDLE và $APP_BUNDLE! ==="
+echo "=== Hoàn thành tạo $APPLICATIONS_BUNDLE! ==="
