@@ -14,6 +14,7 @@ mkdir -p dist
 
 OS_NAME="$(uname -s)"
 if [[ "$OS_NAME" == "Darwin" ]]; then
+  export NATIVE_BUILD_DIR="${NATIVE_BUILD_DIR:-/tmp/zaluu-native-build}"
   ARCH="$(uname -m)"
   if [[ "$ARCH" == "arm64" ]]; then
     TARGET="aarch64-apple-darwin"
